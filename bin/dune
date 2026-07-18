@@ -1,0 +1,8 @@
+(executable
+ (name main)
+ (libraries gmocoin))
+
+(env
+ (dev
+  (flags (:standard -warn-error -a)))
+)
