@@ -111,28 +111,57 @@ let text_of_frame (frame : Websocket.Frame.t) =
   | Websocket.Frame.Opcode.Text -> Some frame.content
   | _ -> None
 
-(* [updates ~symbol channels] はWebSocketに接続し、指定した [symbol] について
-   [channels] をすべて購読して、受信するたびに [update Lwt_stream.t] として流す。 *)
-let updates ~symbol channels =
-  connect () >>= fun conn ->
+(* api.coin.z.com への接続は (OpenSSLバックエンドに切り替えた後も) 断続的に失敗する
+   ことを確認済み (lib/http.ml 参照)。切断された場合も含め、指数バックオフ
+   (0.5秒から最大30秒まで倍々) をかけながら無限にリトライする。 *)
+let rec connect_with_retry ?(delay=0.5) () =
+  Lwt.catch connect
+    (fun exn ->
+       Log.info "Realtime.connect: failed (%s), retrying in %.1fs"
+         (Printexc.to_string exn) delay;
+       Lwt_unix.sleep delay >>= fun () ->
+       connect_with_retry ~delay:(Float.min (delay *. 2.) 30.) ())
+
+(* 1回分の接続セッション: 購読して読み続ける。接続が切れると例外で終わる。 *)
+let run_session ~symbol channels conn push =
   Lwt_list.iter_s (fun channel -> send_subscribe conn ~channel ~symbol) channels >>= fun () ->
-  let rec next () =
+  let rec loop () =
     Websocket_lwt_unix.read conn >>= fun frame ->
     match frame.Websocket.Frame.opcode with
     | Websocket.Frame.Opcode.Ping ->
        Websocket_lwt_unix.write conn
          (Websocket.Frame.create ~opcode:Websocket.Frame.Opcode.Pong ())
-       >>= next
-    | Websocket.Frame.Opcode.Close -> Lwt.return_none
+       >>= loop
+    | Websocket.Frame.Opcode.Close -> Lwt.fail_with "Realtime: server closed the connection"
     | _ ->
        (match text_of_frame frame with
-        | None -> next ()
+        | None -> loop ()
         | Some content ->
-           match update_of_json (Json.from_string content) with
-           | Some update -> Lwt.return_some update
-           | None -> next ())
+           (match update_of_json (Json.from_string content) with
+            | Some update -> push (Some update); loop ()
+            | None -> loop ()))
   in
-  Lwt.return (Lwt_stream.from next)
+  loop ()
+
+(* [updates ~symbol channels] はWebSocketに接続し、指定した [symbol] について
+   [channels] をすべて購読して、受信するたびに [update Lwt_stream.t] として流す。
+   最初の接続が確立するまでは返り値のPromiseは解決しない。接続が途中で切れた場合は
+   呼び出し側から見えないところで自動的に再接続するので、返された stream は
+   (一時的な接続断では) 終了しない。 *)
+let updates ~symbol channels =
+  connect_with_retry () >>= fun conn ->
+  let stream, push = Lwt_stream.create () in
+  let rec keep_running conn =
+    Lwt.catch
+      (fun () -> run_session ~symbol channels conn push)
+      (fun exn ->
+         Log.info "Realtime: connection lost (%s), reconnecting" (Printexc.to_string exn);
+         Lwt.return ())
+    >>= fun () ->
+    connect_with_retry () >>= keep_running
+  in
+  Lwt.async (fun () -> keep_running conn);
+  Lwt.return stream
 
 let single_channel_updates ~symbol channel of_update =
   updates ~symbol [channel] >>= fun stream ->
