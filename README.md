@@ -1,5 +1,7 @@
 # GMOコイン API from OCaml
 
+[![Builds, tests & co](https://github.com/proof-ninja/gmocoin-ocaml/actions/workflows/ocaml-ci.yml/badge.svg)](https://github.com/proof-ninja/gmocoin-ocaml/actions/workflows/ocaml-ci.yml)
+
 [GMOコイン 暗号資産取引所API](https://api.coin.z.com/docs/#outline) のOCaml SDKです。
 
 ## セットアップ
@@ -50,8 +52,6 @@ dune test
 Public WebSocket / Private WebSocketの「subscribe/unsubscribeは1秒間1回まで」という制限は、WebSocket API自体が未実装のため未対応です。
 
 ## API実装状況
-
-凡例: ✅ 実装済み / ❌ 未実装
 
 ### Public API
 
