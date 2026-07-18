@@ -136,6 +136,47 @@ let test_api_error () =
      Alcotest.(check string) "message_string" "MAINTENANCE. Please wait for a while" m.message_string
   | _ -> Alcotest.fail "expected exactly one message"
 
+let test_realtime_ticker () =
+  let json = Common.Json.from_string {|
+    {"channel":"ticker","ask":"750760","bid":"750600","high":"762302","last":"756662",
+     "low":"704874","symbol":"BTC","timestamp":"2018-03-30T12:34:56.789Z","volume":"194785.8484"}
+  |} in
+  let t = Realtime.ticker_of_json json in
+  Alcotest.(check string) "bid" "750600" t.bid;
+  Alcotest.(check string) "ask" "750760" t.ask
+
+(* 実サーバーからの実際のレスポンスには、ドキュメントに記載のない "grouping" フィールドが
+   含まれていた ([@default None] を付けていないと未知キーとしてパースに失敗する)。 *)
+let test_realtime_orderbook () =
+  let json = Common.Json.from_string {|
+    {"channel":"orderbooks","asks":[{"price":"455659","size":"0.1"}],
+     "bids":[{"price":"455655","size":"0.3"}],"symbol":"BTC",
+     "timestamp":"2018-03-30T12:34:56.789Z","grouping":"1"}
+  |} in
+  let ob = Realtime.orderbook_of_json json in
+  Alcotest.(check (option string)) "grouping" (Some "1") ob.grouping;
+  Alcotest.(check int) "asks length" 1 (List.length ob.asks)
+
+let test_realtime_orderbook_without_grouping () =
+  let json = Common.Json.from_string {|
+    {"channel":"orderbooks","asks":[],"bids":[],"symbol":"BTC",
+     "timestamp":"2018-03-30T12:34:56.789Z"}
+  |} in
+  let ob = Realtime.orderbook_of_json json in
+  Alcotest.(check (option string)) "grouping" None ob.grouping
+
+let test_realtime_trade () =
+  let json = Common.Json.from_string {|
+    {"channel":"trades","price":"750760","side":"BUY","size":"0.1",
+     "timestamp":"2018-03-30T12:34:56.789Z","symbol":"BTC"}
+  |} in
+  let tr = Realtime.trade_of_json json in
+  Alcotest.(check string) "price" "750760" tr.price
+
+let test_realtime_update_of_json_unknown_channel () =
+  let json = Common.Json.from_string {|{"channel":"something_else"}|} in
+  Alcotest.(check bool) "unknown channel is ignored" true (Realtime.update_of_json json = None)
+
 let test_rate_limiter () =
   Lwt_main.run begin
     let open Lwt in
@@ -173,6 +214,14 @@ let () =
           Alcotest.test_case "executions" `Quick test_executions;
           Alcotest.test_case "open_positions" `Quick test_open_positions;
           Alcotest.test_case "position_summary" `Quick test_position_summary;
+        ] );
+      ( "Realtime",
+        [
+          Alcotest.test_case "ticker" `Quick test_realtime_ticker;
+          Alcotest.test_case "orderbook" `Quick test_realtime_orderbook;
+          Alcotest.test_case "orderbook without grouping" `Quick test_realtime_orderbook_without_grouping;
+          Alcotest.test_case "trade" `Quick test_realtime_trade;
+          Alcotest.test_case "update_of_json unknown channel" `Quick test_realtime_update_of_json_unknown_channel;
         ] );
       ("RateLimiter", [ Alcotest.test_case "sliding window" `Quick test_rate_limiter ]);
     ]

@@ -17,6 +17,29 @@ let check_status () =
 
 let get_auth () = Auth.auth ()
 
+(* サンプル: 現物 [symbol] (例: "BTC") の板情報を監視し、best_bidが[threshold]以下に
+   なるたびに成行の現物買い注文を出す。ticker チャンネルは値動きがないと配信されない
+   ことを確認したため、常にスナップショットが届く orderbooks チャンネルの best_bid
+   (bids の先頭) を使う。条件を満たしている間は毎回発注するので、実際に動かす際は
+   size や threshold の設定に注意すること。 *)
+let watch_and_buy auth ~symbol ~threshold ~size =
+  Realtime.orderbook_updates ~symbol >>= fun stream ->
+  Lwt_stream.iter_s
+    (fun (ob : Realtime.orderbook) ->
+      match ob.bids with
+      | best_bid :: _ when float_of_string best_bid.Realtime.price <= threshold ->
+         Common.Log.info "best_bid %s <= %f: sending market buy order"
+           best_bid.Realtime.price threshold;
+         PrivateApi.order auth ~symbol ~side:Buy ~execution_type:PrivateApi.Market ~size ()
+         >>= fun order_id ->
+         Common.Log.debug "order placed: orderId=%d" order_id;
+         Lwt.return ()
+      | _ -> Lwt.return ())
+    stream
+
+(* 実行する場合は下記のように呼び出す:
+   Lwt_main.run (watch_and_buy (get_auth ()) ~symbol:"BTC" ~threshold:10_000_000.0 ~size:"0.001") *)
+
 let () =
   Common.Log.set_log_level Common.Log.DEBUG;
   try

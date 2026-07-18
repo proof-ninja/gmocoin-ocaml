@@ -49,7 +49,7 @@ dune test
 | Private API POST | 20回/秒 | 同上 |
 | Public API | 制限なし | ドキュメントに具体的な数値の記載なし |
 
-Public WebSocket / Private WebSocketの「subscribe/unsubscribeは1秒間1回まで」という制限は、WebSocket API自体が未実装のため未対応です。
+Public WebSocket / Private WebSocketの「subscribe/unsubscribeは1秒間1回まで」という制限には未対応です(Public WebSocket APIは実装済みですが、同一接続内で複数チャンネルを連続購読する際の間隔調整はまだ入れていません)。
 
 ## API実装状況
 
@@ -68,13 +68,21 @@ Public WebSocket / Private WebSocketの「subscribe/unsubscribeは1秒間1回ま
 
 ### Public WebSocket API
 
-エンドポイント: `wss://api.coin.z.com/ws/public`
+エンドポイント: `wss://api.coin.z.com/ws/public/v1`(概要ページの記載は`/ws/public`だが、実際のサンプルコードは全て`/v1`付き)
 
 | チャンネル | 状態 | 実装 |
 |---|---|---|
-| 最新レート (ticker) | ❌ | - |
-| 板情報 (orderbooks) | ❌ | - |
-| 取引履歴 (trades) | ❌ | - |
+| 最新レート (ticker) | ✅ | `Realtime.updates`(`Ticker of Realtime.ticker`) |
+| 板情報 (orderbooks) | ✅ | `Realtime.updates`(`Orderbook of Realtime.orderbook`。差分ではなく毎回スナップショット全体) |
+| 取引履歴 (trades) | ✅ | `Realtime.updates`(`Trade of Realtime.trade`) |
+
+`Realtime.updates ~symbol channels`で指定した銘柄・チャンネルをまとめて購読し、`update Lwt_stream.t`(`Ticker | Orderbook | Trade`のバリアント)として受信できます。板情報だけのように単一チャンネルしか使わないことが多いため、パターンマッチ不要でその型のストリームを直接返す専用関数も用意しています: `Realtime.ticker_updates` / `Realtime.orderbook_updates` / `Realtime.trade_updates`(内部的には`updates`を1チャンネルだけで呼んでいるだけ)。`bin/main.ml`の`watch_and_buy`は`Realtime.orderbook_updates`を使い、板情報のbest_bidが閾値以下になるたびに`PrivateApi.order`で成行の現物買い注文を出すサンプル実装です。
+
+実装時に分かった注意点:
+- **tickerチャンネルは値動きがないと配信されない**ことを確認しました(25秒待っても何も届かないケースあり)。常にスナップショットが届く`orderbooks`チャンネルの方が、bid/ask監視には適しています。
+- 板情報のレスポンスには、ドキュメントに記載のない`grouping`フィールドが実際には含まれていました(`Realtime.orderbook`では`string option`として吸収)。
+- 接続はPrivate APIのHTTPと同様、既定のTLSバックエンドだと不安定なため、`` `OpenSSL ``クライアントを明示的に指定しています。
+- サーバーから1分に1回pingが送られ、pongを返さないと切断されます。`Realtime.updates`内で自動的に応答します。
 
 ### Private API
 
