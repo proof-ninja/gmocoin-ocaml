@@ -4,20 +4,20 @@ type channel = Ticker | Orderbooks | Trades
 
 type ticker = {
     channel: string;
-    ask: string;
-    bid: string;
-    high: string;
-    last: string;
-    low: string;
+    ask: numeric;
+    bid: numeric;
+    high: numeric;
+    last: numeric;
+    low: numeric;
     symbol: string;
     timestamp: string;
-    volume: string;
+    volume: numeric;
 }
 val ticker_of_json : Json.t -> ticker
 
 type level = {
-    price: string;
-    size: string;
+    price: numeric;
+    size: numeric;
 }
 
 (* REST版と異なり、板情報は差分ではなく毎回スナップショット全体が届く。 *)
@@ -33,9 +33,9 @@ val orderbook_of_json : Json.t -> orderbook
 
 type trade = {
     channel: string;
-    price: string;
+    price: numeric;
     side: side;
-    size: string;
+    size: numeric;
     timestamp: string;
     symbol: string;
 }

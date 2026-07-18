@@ -43,14 +43,14 @@ let send_subscribe conn ~channel ~symbol =
 
 type ticker = {
     channel: string;
-    ask: string;
-    bid: string;
-    high: string;
-    last: string;
-    low: string;
+    ask: numeric;
+    bid: numeric;
+    high: numeric;
+    last: numeric;
+    low: numeric;
     symbol: string;
     timestamp: string;
-    volume: string;
+    volume: numeric;
 } [@@deriving yojson]
 
 let ticker_of_json json =
@@ -59,8 +59,8 @@ let ticker_of_json json =
   | Error msg -> failwith (!%"Realtime.ticker_of_json: %s" msg)
 
 type level = {
-    price: string;
-    size: string;
+    price: numeric;
+    size: numeric;
 } [@@deriving yojson]
 
 (* REST版と異なり、板情報は差分ではなく毎回スナップショット全体が届く。
@@ -82,9 +82,9 @@ let orderbook_of_json json =
 
 type trade = {
     channel: string;
-    price: string;
+    price: numeric;
     side: side;
-    size: string;
+    size: numeric;
     timestamp: string;
     symbol: string;
 } [@@deriving yojson]

@@ -5,13 +5,13 @@ open Common
    すべての呼出にAPIキーによる認証が必要。 *)
 
 type margin = {
-    actualProfitLoss: string;
-    availableAmount: string;
-    margin: string;
+    actualProfitLoss: numeric;
+    availableAmount: numeric;
+    margin: numeric;
     marginCallStatus: string; (* NORMAL | MARGIN_CALL | LOSSCUT *)
-    marginRatio: string;
-    profitLoss: string;
-    transferableAmount: string;
+    marginRatio: numeric;
+    profitLoss: numeric;
+    transferableAmount: numeric;
 } [@@deriving yojson]
 
 let margin_of_json json =
@@ -24,9 +24,9 @@ let margin auth () =
   Lwt.return (margin_of_json json)
 
 type asset = {
-    amount: string;
-    available: string;
-    conversionRate: string;
+    amount: numeric;
+    available: numeric;
+    conversionRate: numeric;
     symbol: string;
 } [@@deriving yojson]
 
@@ -49,10 +49,10 @@ type order_info = {
     orderType: string; (* NORMAL | LOSSCUT *)
     executionType: string; (* MARKET | LIMIT | STOP *)
     settleType: string; (* OPEN | CLOSE *)
-    size: string;
-    executedSize: string;
-    price: string option [@default None];
-    losscutPrice: string;
+    size: numeric;
+    executedSize: numeric;
+    price: numeric option [@default None];
+    losscutPrice: numeric;
     status: string; (* WAITING|ORDERED|MODIFYING|CANCELLING|CANCELED|EXECUTED|EXPIRED *)
     cancelType: string option [@default None];
     timeInForce: string; (* FAK|FAS|FOK|SOK *)
@@ -101,10 +101,10 @@ type execution = {
     symbol: string;
     side: side;
     settleType: string; (* OPEN | CLOSE *)
-    size: string;
-    price: string;
-    lossGain: string;
-    fee: string;
+    size: numeric;
+    price: numeric;
+    lossGain: numeric;
+    fee: numeric;
     timestamp: string;
 } [@@deriving yojson]
 
@@ -153,12 +153,12 @@ type position = {
     positionId: int;
     symbol: string;
     side: side;
-    size: string;
-    orderdSize: string;
-    price: string;
-    lossGain: string;
-    leverage: string;
-    losscutPrice: string;
+    size: numeric;
+    orderdSize: numeric;
+    price: numeric;
+    lossGain: numeric;
+    leverage: numeric;
+    losscutPrice: numeric;
     timestamp: string;
 } [@@deriving yojson]
 
@@ -183,11 +183,11 @@ let open_positions auth ~symbol ?page ?count () =
   Lwt.return (open_positions_response_of_json json)
 
 type position_summary = {
-    averagePositionRate: string;
-    positionLossGain: string;
+    averagePositionRate: numeric;
+    positionLossGain: numeric;
     side: side;
-    sumOrderQuantity: string;
-    sumPositionQuantity: string;
+    sumOrderQuantity: numeric;
+    sumPositionQuantity: numeric;
     symbol: string;
 } [@@deriving yojson]
 

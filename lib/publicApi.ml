@@ -16,14 +16,14 @@ let status () =
       | exn -> Lwt.fail exn)
 
 type ticker = {
-    ask: string;
-    bid: string;
-    high: string;
-    last: string;
-    low: string;
+    ask: numeric;
+    bid: numeric;
+    high: numeric;
+    last: numeric;
+    low: numeric;
     symbol: string;
     timestamp: string;
-    volume: string;
+    volume: numeric;
 } [@@deriving yojson]
 
 let tickers_of_json json =
@@ -37,8 +37,8 @@ let ticker ?symbol () =
   Lwt.return (tickers_of_json json)
 
 type level = {
-    price: string;
-    size: string;
+    price: numeric;
+    size: numeric;
 } [@@deriving yojson]
 
 type orderbook = {
@@ -57,9 +57,9 @@ let orderbooks ~symbol () =
   Lwt.return (orderbook_of_json json)
 
 type trade = {
-    price: string;
+    price: numeric;
     side: side;
-    size: string;
+    size: numeric;
     timestamp: string;
 } [@@deriving yojson]
 
@@ -95,11 +95,11 @@ let string_of_interval = function
 
 type kline = {
     openTime: string;
-    open_: string [@key "open"];
-    high: string;
-    low: string;
-    close: string;
-    volume: string;
+    open_: numeric [@key "open"];
+    high: numeric;
+    low: numeric;
+    close: numeric;
+    volume: numeric;
 } [@@deriving yojson]
 
 let klines_of_json json =
@@ -119,12 +119,12 @@ let klines ~symbol ~interval ~date () =
 
 type symbol_rule = {
     symbol: string;
-    minOrderSize: string;
-    maxOrderSize: string;
-    sizeStep: string;
-    tickSize: string;
-    takerFee: string;
-    makerFee: string;
+    minOrderSize: numeric;
+    maxOrderSize: numeric;
+    sizeStep: numeric;
+    tickSize: numeric;
+    takerFee: numeric;
+    makerFee: numeric;
 } [@@deriving yojson]
 
 let symbols_of_json json =

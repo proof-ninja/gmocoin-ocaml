@@ -2,22 +2,22 @@ open Common
 
 (* 余力情報を取得 *)
 type margin = {
-    actualProfitLoss: string;
-    availableAmount: string;
-    margin: string;
+    actualProfitLoss: numeric;
+    availableAmount: numeric;
+    margin: numeric;
     marginCallStatus: string;
-    marginRatio: string;
-    profitLoss: string;
-    transferableAmount: string;
+    marginRatio: numeric;
+    profitLoss: numeric;
+    transferableAmount: numeric;
 }
 val margin_of_json : Json.t -> margin
 val margin : Auth.t -> unit -> margin Lwt.t
 
 (* 資産残高を取得 *)
 type asset = {
-    amount: string;
-    available: string;
-    conversionRate: string;
+    amount: numeric;
+    available: numeric;
+    conversionRate: numeric;
     symbol: string;
 }
 val assets_of_json : Json.t -> asset list
@@ -31,10 +31,10 @@ type order_info = {
     orderType: string;
     executionType: string;
     settleType: string;
-    size: string;
-    executedSize: string;
-    price: string option;
-    losscutPrice: string;
+    size: numeric;
+    executedSize: numeric;
+    price: numeric option;
+    losscutPrice: numeric;
     status: string;
     cancelType: string option;
     timeInForce: string;
@@ -66,10 +66,10 @@ type execution = {
     symbol: string;
     side: side;
     settleType: string;
-    size: string;
-    price: string;
-    lossGain: string;
-    fee: string;
+    size: numeric;
+    price: numeric;
+    lossGain: numeric;
+    fee: numeric;
     timestamp: string;
 }
 
@@ -97,12 +97,12 @@ type position = {
     positionId: int;
     symbol: string;
     side: side;
-    size: string;
-    orderdSize: string;
-    price: string;
-    lossGain: string;
-    leverage: string;
-    losscutPrice: string;
+    size: numeric;
+    orderdSize: numeric;
+    price: numeric;
+    lossGain: numeric;
+    leverage: numeric;
+    losscutPrice: numeric;
     timestamp: string;
 }
 
@@ -117,11 +117,11 @@ val open_positions :
   Auth.t -> symbol:symbol -> ?page:int -> ?count:int -> unit -> open_positions_response Lwt.t
 
 type position_summary = {
-    averagePositionRate: string;
-    positionLossGain: string;
+    averagePositionRate: numeric;
+    positionLossGain: numeric;
     side: side;
-    sumOrderQuantity: string;
-    sumPositionQuantity: string;
+    sumOrderQuantity: numeric;
+    sumPositionQuantity: numeric;
     symbol: string;
 }
 
@@ -137,6 +137,8 @@ type execution_type = Market | Limit | Stop
 type time_in_force = FAK | FAS | FOK | SOK
 
 (* 新規注文。対象: 現物取引、レバレッジ取引。戻り値は発注されたorderId。
+   price/losscut_price/size は発注時にそのままリクエストボディへ渡す文字列のため、
+   floatの丸め誤差を避けてあえて string のままにしている。
    - price: execution_type が Limit/Stop の場合は必須。
    - losscut_price: レバレッジ取引で execution_type が Limit/Stop の場合のみ指定可能。 *)
 val order :

@@ -9,6 +9,16 @@ let test_side_roundtrip () =
     (Failure "Common.side_of_string: 'FOO'")
     (fun () -> ignore (Common.side_of_string "FOO"))
 
+let test_numeric_of_yojson () =
+  Alcotest.(check (float 0.0)) "string" 455659. (Common.numeric_of_yojson (`String "455659") |> Result.get_ok);
+  Alcotest.(check (float 0.0)) "negative string"
+    (-0.0001) (Common.numeric_of_yojson (`String "-0.0001") |> Result.get_ok);
+  Alcotest.(check (float 0.0)) "int" 5. (Common.numeric_of_yojson (`Int 5) |> Result.get_ok);
+  Alcotest.(check (float 0.0)) "float" 5.5 (Common.numeric_of_yojson (`Float 5.5) |> Result.get_ok);
+  match Common.numeric_of_yojson (`String "not-a-number") with
+  | Error _ -> ()
+  | Ok _ -> Alcotest.fail "expected Error for a non-numeric string"
+
 let test_ticker () =
   let json = Common.Json.from_string {|
     [{"ask":"750760","bid":"750600","high":"762302","last":"756662","low":"704874",
@@ -17,8 +27,8 @@ let test_ticker () =
   match PublicApi.tickers_of_json json with
   | [t] ->
      Alcotest.(check string) "symbol" "BTC" t.symbol;
-     Alcotest.(check string) "bid" "750600" t.bid;
-     Alcotest.(check string) "ask" "750760" t.ask
+     Alcotest.(check (float 0.0)) "bid" 750600. t.bid;
+     Alcotest.(check (float 0.0)) "ask" 750760. t.ask
   | _ -> Alcotest.fail "expected exactly one ticker"
 
 let test_orderbook () =
@@ -44,7 +54,7 @@ let test_klines () =
     [{"openTime":"1618588800000","open":"6418255","high":"6518250","low":"6318250","close":"6418253","volume":"0.0001"}]
   |} in
   match PublicApi.klines_of_json json with
-  | [k] -> Alcotest.(check string) "open" "6418255" k.open_
+  | [k] -> Alcotest.(check (float 0.0)) "open" 6418255. k.open_
   | _ -> Alcotest.fail "expected exactly one kline"
 
 let test_symbols () =
@@ -92,7 +102,7 @@ let test_orders_optional_fields () =
   | [executed; canceled; market] ->
      Alcotest.(check (option string)) "executed order has cancelType=None" None executed.cancelType;
      Alcotest.(check (option string)) "canceled order has cancelType" (Some "USER") canceled.cancelType;
-     Alcotest.(check (option string)) "market order has no price" None market.price
+     Alcotest.(check (option (float 0.0))) "market order has no price" None market.price
   | _ -> Alcotest.fail "expected exactly three orders"
 
 let test_executions () =
@@ -142,8 +152,8 @@ let test_realtime_ticker () =
      "low":"704874","symbol":"BTC","timestamp":"2018-03-30T12:34:56.789Z","volume":"194785.8484"}
   |} in
   let t = Realtime.ticker_of_json json in
-  Alcotest.(check string) "bid" "750600" t.bid;
-  Alcotest.(check string) "ask" "750760" t.ask
+  Alcotest.(check (float 0.0)) "bid" 750600. t.bid;
+  Alcotest.(check (float 0.0)) "ask" 750760. t.ask
 
 (* 実サーバーからの実際のレスポンスには、ドキュメントに記載のない "grouping" フィールドが
    含まれていた ([@default None] を付けていないと未知キーとしてパースに失敗する)。 *)
@@ -171,7 +181,7 @@ let test_realtime_trade () =
      "timestamp":"2018-03-30T12:34:56.789Z","symbol":"BTC"}
   |} in
   let tr = Realtime.trade_of_json json in
-  Alcotest.(check string) "price" "750760" tr.price
+  Alcotest.(check (float 0.0)) "price" 750760. tr.price
 
 let test_realtime_update_of_json_unknown_channel () =
   let json = Common.Json.from_string {|{"channel":"something_else"}|} in
@@ -196,7 +206,11 @@ let test_rate_limiter () =
 let () =
   Alcotest.run "gmocoin"
     [
-      ("Common", [ Alcotest.test_case "side roundtrip" `Quick test_side_roundtrip ]);
+      ( "Common",
+        [
+          Alcotest.test_case "side roundtrip" `Quick test_side_roundtrip;
+          Alcotest.test_case "numeric_of_yojson" `Quick test_numeric_of_yojson;
+        ] );
       ("ApiCommon", [ Alcotest.test_case "api_error parsing" `Quick test_api_error ]);
       ( "PublicApi",
         [

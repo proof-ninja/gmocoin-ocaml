@@ -38,3 +38,21 @@ type pagination = {
     currentPage: int;
     count: int;
 } [@@deriving yojson]
+
+(* GMOコインは price/size/amount 等の数値も JSON 上は文字列 (例: "455659") で
+   返してくる。[float] のまま [@@deriving yojson] すると `String を受け付けないため、
+   [numeric] という別名を用意し、文字列からのパース/文字列への変換を手書きする。
+   これを使えば呼び出し側は普通の float としてそのまま演算・比較できる。 *)
+type numeric = float
+
+let numeric_of_yojson json =
+  match json with
+  | `String s ->
+     (try Ok (float_of_string s) with _ -> Error (!%"numeric_of_yojson: invalid numeric string '%s'" s))
+  | `Int i -> Ok (float_of_int i)
+  | `Float f -> Ok f
+  | `Intlit s ->
+     (try Ok (float_of_string s) with _ -> Error (!%"numeric_of_yojson: invalid numeric string '%s'" s))
+  | _ -> Error "numeric_of_yojson: expected a numeric string"
+
+let numeric_to_yojson (n : numeric) : Yojson.Safe.t = `String (string_of_float n)

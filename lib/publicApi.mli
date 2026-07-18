@@ -5,14 +5,14 @@ open Common
 val status : unit -> (string, ApiCommon.api_error) result Lwt.t
 
 type ticker = {
-    ask: string;
-    bid: string;
-    high: string;
-    last: string;
-    low: string;
+    ask: numeric;
+    bid: numeric;
+    high: numeric;
+    last: numeric;
+    low: numeric;
     symbol: string;
     timestamp: string;
-    volume: string;
+    volume: numeric;
 }
 
 val tickers_of_json : Json.t -> ticker list
@@ -21,8 +21,8 @@ val tickers_of_json : Json.t -> ticker list
 val ticker : ?symbol:symbol -> unit -> ticker list Lwt.t
 
 type level = {
-    price: string;
-    size: string;
+    price: numeric;
+    size: numeric;
 }
 
 type orderbook = {
@@ -36,9 +36,9 @@ val orderbook_of_json : Json.t -> orderbook
 val orderbooks : symbol:symbol -> unit -> orderbook Lwt.t
 
 type trade = {
-    price: string;
+    price: numeric;
     side: side;
-    size: string;
+    size: numeric;
     timestamp: string;
 }
 
@@ -58,11 +58,11 @@ type interval =
 
 type kline = {
     openTime: string;
-    open_: string;
-    high: string;
-    low: string;
-    close: string;
-    volume: string;
+    open_: numeric;
+    high: numeric;
+    low: numeric;
+    close: numeric;
+    volume: numeric;
 }
 
 val klines_of_json : Json.t -> kline list
@@ -72,12 +72,12 @@ val klines : symbol:symbol -> interval:interval -> date:string -> unit -> kline 
 
 type symbol_rule = {
     symbol: string;
-    minOrderSize: string;
-    maxOrderSize: string;
-    sizeStep: string;
-    tickSize: string;
-    takerFee: string;
-    makerFee: string;
+    minOrderSize: numeric;
+    maxOrderSize: numeric;
+    sizeStep: numeric;
+    tickSize: numeric;
+    takerFee: numeric;
+    makerFee: numeric;
 }
 
 val symbols_of_json : Json.t -> symbol_rule list

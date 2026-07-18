@@ -27,8 +27,8 @@ let watch_and_buy auth ~symbol ~threshold ~size =
   Lwt_stream.iter_s
     (fun (ob : Realtime.orderbook) ->
       match ob.bids with
-      | best_bid :: _ when float_of_string best_bid.Realtime.price <= threshold ->
-         Common.Log.info "best_bid %s <= %f: sending market buy order"
+      | best_bid :: _ when best_bid.Realtime.price <= threshold ->
+         Common.Log.info "best_bid %f <= %f: sending market buy order"
            best_bid.Realtime.price threshold;
          PrivateApi.order auth ~symbol ~side:Buy ~execution_type:PrivateApi.Market ~size ()
          >>= fun order_id ->
@@ -48,12 +48,12 @@ let () =
         if is_available then
           PublicApi.ticker ~symbol:"BTC_JPY" () >>= fun tickers ->
           List.iter (fun (t : PublicApi.ticker) ->
-              Printf.printf "%s: bid=%s ask=%s last=%s\n" t.symbol t.bid t.ask t.last)
+              Printf.printf "%s: bid=%f ask=%f last=%f\n" t.symbol t.bid t.ask t.last)
             tickers;
           let auth = get_auth () in
           PrivateApi.assets auth () >>= fun assets ->
           List.iter (fun (asset : PrivateApi.asset) ->
-              print_endline (!%"[%s] %s" asset.symbol asset.amount)) assets;
+              print_endline (!%"[%s] %f" asset.symbol asset.amount)) assets;
           Lwt.return ()
         else Lwt.return ()
       end
