@@ -122,24 +122,42 @@ let rec connect_with_retry ?(delay=0.5) () =
        Lwt_unix.sleep delay >>= fun () ->
        connect_with_retry ~delay:(Float.min (delay *. 2.) 30.) ())
 
-(* 1回分の接続セッション: 購読して読み続ける。接続が切れると例外で終わる。 *)
+(* ネットワーク経路が明示的なCloseもRST/FINも送らずに黙って死んだ場合
+   (Wi-Fiのスリープ復帰やNATのセッションタイムアウトなど)、[Websocket_lwt_unix.read]
+   は例外にならずただ無期限にpendingし続け、再接続ロジックが一切働かなくなる。
+   サーバーは60秒おきにpingを送ってくる仕様なので、それより十分長い時間
+   何も届かなければ接続が死んでいるとみなして例外を投げ、再接続させる。 *)
+let read_timeout = 90.0
+
+type read_result = Received of Websocket.Frame.t | Timed_out
+
+let read_with_timeout conn =
+  Lwt.pick [
+      (Websocket_lwt_unix.read conn >|= fun frame -> Received frame);
+      (Lwt_unix.sleep read_timeout >|= fun () -> Timed_out);
+    ]
+
+(* 1回分の接続セッション: 購読して読み続ける。接続が切れる(または無応答が続く)と例外で終わる。 *)
 let run_session ~symbol channels conn push =
   Lwt_list.iter_s (fun channel -> send_subscribe conn ~channel ~symbol) channels >>= fun () ->
   let rec loop () =
-    Websocket_lwt_unix.read conn >>= fun frame ->
-    match frame.Websocket.Frame.opcode with
-    | Websocket.Frame.Opcode.Ping ->
-       Websocket_lwt_unix.write conn
-         (Websocket.Frame.create ~opcode:Websocket.Frame.Opcode.Pong ())
-       >>= loop
-    | Websocket.Frame.Opcode.Close -> Lwt.fail_with "Realtime: server closed the connection"
-    | _ ->
-       (match text_of_frame frame with
-        | None -> loop ()
-        | Some content ->
-           (match update_of_json (Json.from_string content) with
-            | Some update -> push (Some update); loop ()
-            | None -> loop ()))
+    read_with_timeout conn >>= function
+    | Timed_out ->
+       Lwt.fail_with (!%"Realtime: no data received within %.0fs, treating connection as dead" read_timeout)
+    | Received frame ->
+       (match frame.Websocket.Frame.opcode with
+        | Websocket.Frame.Opcode.Ping ->
+           Websocket_lwt_unix.write conn
+             (Websocket.Frame.create ~opcode:Websocket.Frame.Opcode.Pong ())
+           >>= loop
+        | Websocket.Frame.Opcode.Close -> Lwt.fail_with "Realtime: server closed the connection"
+        | _ ->
+           (match text_of_frame frame with
+            | None -> loop ()
+            | Some content ->
+               (match update_of_json (Json.from_string content) with
+                | Some update -> push (Some update); loop ()
+                | None -> loop ())))
   in
   loop ()
 
