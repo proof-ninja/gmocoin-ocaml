@@ -1,6 +1,7 @@
 open Gmocoin
 open Common
 open Lwt
+module Log = Dolog.Log
 
 let check_status () =
   PublicApi.status () >>= fun status ->
@@ -28,11 +29,11 @@ let watch_and_buy auth ~symbol ~threshold ~size =
     (fun (ob : Realtime.orderbook) ->
       match ob.bids with
       | best_bid :: _ when best_bid.Realtime.price <= threshold ->
-         Common.Log.info "best_bid %f <= %f: sending market buy order"
+         Log.info "best_bid %f <= %f: sending market buy order"
            best_bid.Realtime.price threshold;
          PrivateApi.order auth ~symbol ~side:Buy ~execution_type:PrivateApi.Market ~size ()
          >>= fun order_id ->
-         Common.Log.debug "order placed: orderId=%d" order_id;
+         Log.debug "order placed: orderId=%d" order_id;
          Lwt.return ()
       | _ -> Lwt.return ())
     stream
@@ -41,7 +42,7 @@ let watch_and_buy auth ~symbol ~threshold ~size =
    Lwt_main.run (watch_and_buy (get_auth ()) ~symbol:"BTC" ~threshold:10_000_000.0 ~size:"0.001") *)
 
 let () =
-  Common.Log.set_log_level Common.Log.DEBUG;
+  Log.set_log_level Log.DEBUG;
   try
     Lwt_main.run begin
         check_status() >>= fun is_available ->

@@ -1,6 +1,6 @@
 (executable
  (name main)
- (libraries gmocoin))
+ (libraries gmocoin dolog))
 
 (env
  (dev

@@ -3,5 +3,5 @@
  (preprocess (pps lwt_ppx ppx_deriving_yojson))
  (public_name gmocoin)
  (libraries
- cohttp cohttp-lwt-unix hacl-star yojson hex dolog lwt_ppx
+ cohttp cohttp-lwt-unix hacl-star yojson hex lwt_ppx
  websocket-lwt-unix ipaddr.unix))

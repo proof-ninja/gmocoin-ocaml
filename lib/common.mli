@@ -4,7 +4,6 @@ val list_add_opt : 'a option -> 'a list -> 'a list
 
 type symbol = string
 
-module Log = Dolog.Log
 module Json = Yojson.Safe
 
 type side = Buy | Sell

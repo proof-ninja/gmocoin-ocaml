@@ -26,7 +26,6 @@ let sign auth timestamp method_ path body =
     ~key:(Bytes.of_string secret) ~msg:(Bytes.of_string text)
   |> Hex.of_bytes
   |> Hex.show
-  |> fun s -> Log.debug "Auth.sign: '%s' ==> '%s'" text s; s
 
 (* [path] は "/v1/..." のように "/private" を含まない形で渡すこと。
    GMOコインの署名対象パスはクエリ文字列も含めない。

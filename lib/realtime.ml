@@ -116,9 +116,7 @@ let text_of_frame (frame : Websocket.Frame.t) =
    (0.5秒から最大30秒まで倍々) をかけながら無限にリトライする。 *)
 let rec connect_with_retry ?(delay=0.5) () =
   Lwt.catch connect
-    (fun exn ->
-       Log.info "Realtime.connect: failed (%s), retrying in %.1fs"
-         (Printexc.to_string exn) delay;
+    (fun _exn ->
        Lwt_unix.sleep delay >>= fun () ->
        connect_with_retry ~delay:(Float.min (delay *. 2.) 30.) ())
 
@@ -172,9 +170,7 @@ let updates ~symbol channels =
   let rec keep_running conn =
     Lwt.catch
       (fun () -> run_session ~symbol channels conn push)
-      (fun exn ->
-         Log.info "Realtime: connection lost (%s), reconnecting" (Printexc.to_string exn);
-         Lwt.return ())
+      (fun _exn -> Lwt.return ())
     >>= fun () ->
     connect_with_retry () >>= keep_running
   in
