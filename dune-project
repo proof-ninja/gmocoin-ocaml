@@ -22,7 +22,24 @@
  (synopsis "OCaml client for the GMO Coin cryptocurrency exchange API")
  (description
   "Provides typed bindings to GMO Coin's public and private HTTP APIs (market data, order placement and management, positions, assets, margin, account transfers) and both the public and private realtime WebSocket APIs (ticker, orderbook, trades, and authenticated execution/order/position event channels). Handles HMAC-SHA256 request signing and rate limiting automatically.")
- (depends ocaml dune cohttp lwt cohttp-lwt-unix yojson ppx_deriving_yojson hacl-star hex dolog lwt_ppx websocket-lwt-unix ipaddr (alcotest :with-test))
+ (depends
+  ocaml
+  dune
+  cohttp
+  lwt
+  cohttp-lwt-unix
+  yojson
+  ppx_deriving_yojson
+  (hacl-star
+   (>= "0.7.2"))
+  (hex
+   (>= "1.3.0"))
+  dolog
+  lwt_ppx
+  (websocket-lwt-unix
+   (>= "2.17"))
+  ipaddr
+  (alcotest :with-test))
  (tags
   ("cryptocurrency" "exchange" "trading" "api" "websocket")))
 
