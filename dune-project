@@ -13,7 +13,7 @@
 
 (maintainers "Yoshihiro Imai")
 
-(license LICENSE)
+(license MIT)
 
 (documentation https://url/to/documentation)
 
