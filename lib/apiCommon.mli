@@ -10,3 +10,5 @@ val api_error_of_json : Json.t -> api_error
 val get_public : string -> (string * string) list -> Json.t Lwt.t
 val get : Auth.t -> string -> (string * string) list -> Json.t Lwt.t
 val post : Auth.t -> string -> string -> Json.t Lwt.t
+val put : Auth.t -> string -> string -> Json.t Lwt.t
+val delete : Auth.t -> string -> string -> Json.t Lwt.t

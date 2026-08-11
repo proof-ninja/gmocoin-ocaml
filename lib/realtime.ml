@@ -203,3 +203,179 @@ let trade_updates ~symbol =
   single_channel_updates ~symbol Trades (function
     | Trade tr -> Some tr
     | _ -> None)
+
+(* Private WebSocket API
+   wss://api.coin.z.com/ws/private/v1/<token>
+   subscribe: {"command":"subscribe","channel":"executionEvents"|"orderEvents"|
+               "positionEvents"|"positionSummaryEvents"} (symbolによる絞り込みは無い)。
+   tokenはPrivateApi.ws_auth_postで取得する(有効期限60分)。 *)
+let private_endpoint_prefix = "wss://api.coin.z.com/ws/private/v1"
+
+type private_channel =
+  | ExecutionEvents
+  | OrderEvents
+  | PositionEvents
+  | PositionSummaryEvents
+
+let string_of_private_channel = function
+  | ExecutionEvents -> "executionEvents"
+  | OrderEvents -> "orderEvents"
+  | PositionEvents -> "positionEvents"
+  | PositionSummaryEvents -> "positionSummaryEvents"
+
+let send_private_subscribe conn channel =
+  let request =
+    `Assoc
+      [
+        ("command", `String "subscribe");
+        ("channel", `String (string_of_private_channel channel));
+      ]
+  in
+  Websocket_lwt_unix.write conn
+    (Websocket.Frame.create ~content:(Json.to_string request) ())
+
+(* positionIdはレバレッジ取引の場合のみ、orderPriceはMARKET注文の場合は
+   含まれないためoption。 *)
+type execution_event = {
+  channel : string;
+  orderId : int;
+  executionId : int;
+  symbol : string;
+  settleType : string;
+  executionType : string;
+  side : side;
+  executionPrice : numeric;
+  executionSize : numeric;
+  positionId : int option; [@default None]
+  orderTimestamp : string;
+  executionTimestamp : string;
+  lossGain : numeric;
+  fee : numeric;
+  orderPrice : numeric option; [@default None]
+  orderSize : numeric;
+  orderExecutedSize : numeric;
+  timeInForce : string;
+  msgType : string;
+}
+[@@deriving yojson]
+
+let execution_event_of_json json =
+  match execution_event_of_yojson json with
+  | Ok event -> event
+  | Error msg -> failwith (!%"Realtime.execution_event_of_json: %s" msg)
+
+(* cancelTypeはorderStatusがCANCELED/EXPIREDの場合のみ、orderPriceはMARKET注文の
+   場合は含まれないためoption。 *)
+type order_event = {
+  channel : string;
+  orderId : int;
+  symbol : string;
+  settleType : string;
+  executionType : string;
+  side : side;
+  orderStatus : string;
+  cancelType : string option; [@default None]
+  orderTimestamp : string;
+  orderPrice : numeric option; [@default None]
+  orderSize : numeric;
+  orderExecutedSize : numeric;
+  losscutPrice : numeric;
+  timeInForce : string;
+  msgType : string;
+}
+[@@deriving yojson]
+
+let order_event_of_json json =
+  match order_event_of_yojson json with
+  | Ok event -> event
+  | Error msg -> failwith (!%"Realtime.order_event_of_json: %s" msg)
+
+type position_event = {
+  channel : string;
+  positionId : int;
+  symbol : string;
+  side : side;
+  size : numeric;
+  orderdSize : numeric;
+  price : numeric;
+  lossGain : numeric;
+  leverage : numeric;
+  losscutPrice : numeric;
+  timestamp : string;
+  msgType : string;
+}
+[@@deriving yojson]
+
+let position_event_of_json json =
+  match position_event_of_yojson json with
+  | Ok event -> event
+  | Error msg -> failwith (!%"Realtime.position_event_of_json: %s" msg)
+
+type position_summary_event = {
+  channel : string;
+  symbol : string;
+  side : side;
+  averagePositionRate : numeric;
+  positionLossGain : numeric;
+  sumOrderQuantity : numeric;
+  sumPositionQuantity : numeric;
+  timestamp : string;
+  msgType : string;
+}
+[@@deriving yojson]
+
+let position_summary_event_of_json json =
+  match position_summary_event_of_yojson json with
+  | Ok event -> event
+  | Error msg -> failwith (!%"Realtime.position_summary_event_of_json: %s" msg)
+
+type private_update =
+  | ExecutionEvent of execution_event
+  | OrderEvent of order_event
+  | PositionEvent of position_event
+  | PositionSummaryEvent of position_summary_event
+
+let private_update_of_json json =
+  match Json.Util.member "channel" json with
+  | `String "executionEvents" ->
+      Some (ExecutionEvent (execution_event_of_json json))
+  | `String "orderEvents" -> Some (OrderEvent (order_event_of_json json))
+  | `String "positionEvents" ->
+      Some (PositionEvent (position_event_of_json json))
+  | `String "positionSummaryEvents" ->
+      Some (PositionSummaryEvent (position_summary_event_of_json json))
+  | _ -> None
+
+(* 公開チャンネル用の[updates]と違い、接続が切れても内部で自動再接続はしない
+   (トークンが期限切れで無効になっている可能性があり、その場合はいくら
+   再接続を試みても無意味なため)。接続が切れた場合は[next]がそのまま例外を
+   投げ、[Lwt_stream.from]の性質によりストリームの読み出しがその例外で終わる。 *)
+let private_updates ~token channels =
+  let uri = Uri.of_string (private_endpoint_prefix ^ "/" ^ token) in
+  client_of_uri uri >>= fun client ->
+  Websocket_lwt_unix.connect client uri >>= fun conn ->
+  Lwt_list.iter_s (send_private_subscribe conn) channels >>= fun () ->
+  let rec next () =
+    read_with_timeout conn >>= function
+    | Timed_out ->
+        Lwt.fail_with
+          (!%"Realtime: no data received within %.0fs, treating connection as \
+              dead"
+             read_timeout)
+    | Received frame -> (
+        match frame.Websocket.Frame.opcode with
+        | Websocket.Frame.Opcode.Ping ->
+            Websocket_lwt_unix.write conn
+              (Websocket.Frame.create ~opcode:Websocket.Frame.Opcode.Pong ())
+            >>= next
+        | Websocket.Frame.Opcode.Close ->
+            Lwt.fail_with "Realtime: server closed the connection"
+        | _ -> (
+            match text_of_frame frame with
+            | None -> next ()
+            | Some content -> (
+                match private_update_of_json (Json.from_string content) with
+                | Some update -> Lwt.return_some update
+                | None -> next ())))
+  in
+  Lwt.return (Lwt_stream.from next)

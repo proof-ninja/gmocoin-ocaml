@@ -255,3 +255,102 @@ val order :
 
 (* 注文キャンセル *)
 val cancel_order : Auth.t -> order_id:int -> unit -> unit Lwt.t
+
+(* 口座振替。暗号資産口座と外国為替FX口座の間で日本円を振替える。
+   リクエストは3分に1回が上限。 *)
+type transfer_type =
+  | Withdrawal (* 暗号資産口座 -> 外国為替FX口座 *)
+  | Deposit (* 外国為替FX口座 -> 暗号資産口座 *)
+
+(* レスポンスの実体は何故か単一要素の配列 ({"data": [{"transferredAmount": ...}]})。
+   ドキュメントのレスポンス例通りにlistのまま返す。 *)
+type transfer_result = { transferredAmount : numeric }
+
+val transfer :
+  Auth.t ->
+  amount:string ->
+  transfer_type:transfer_type ->
+  unit ->
+  transfer_result list Lwt.t
+
+(* 注文変更。対象: 現物取引、レバレッジ取引。 *)
+val change_order :
+  Auth.t ->
+  order_id:int ->
+  price:string ->
+  ?losscut_price:string ->
+  unit ->
+  unit Lwt.t
+
+(* 複数の注文を取消す(最大10件)。対象: 現物取引、レバレッジ取引。 *)
+type cancel_orders_failure = {
+  message_code : string;
+  message_string : string;
+  orderId : int;
+}
+
+type cancel_orders_result = {
+  success : int list;
+  failed : cancel_orders_failure list;
+}
+
+val cancel_orders :
+  Auth.t -> order_ids:int list -> unit -> cancel_orders_result Lwt.t
+
+(* 条件を満たす注文を一括で取消す(取消対象検索後、最大10件)。
+   対象: 現物取引、レバレッジ取引。[side]/[settle_type]("OPEN"|"CLOSE")省略時は
+   絞り込みなし。[desc]はtrueで新しい注文から、falseで古い注文から取消す(既定false)。
+   戻り値は取消受付に成功した注文IDの一覧。 *)
+val cancel_bulk_order :
+  Auth.t ->
+  symbols:symbol list ->
+  ?side:side ->
+  ?settle_type:string ->
+  ?desc:bool ->
+  unit ->
+  int list Lwt.t
+
+(* closeOrder/closeBulkOrderで決済対象の建玉を指定する。建玉は1つのみ指定可能。 *)
+type settle_position = { positionId : int; size : string }
+
+(* 決済注文。対象: レバレッジ取引。戻り値は決済注文対象のorderId。
+   price: execution_type が Limit/Stop の場合は必須。 *)
+val close_order :
+  Auth.t ->
+  symbol:symbol ->
+  side:side ->
+  execution_type:execution_type ->
+  ?time_in_force:time_in_force ->
+  ?price:string ->
+  settle_position:settle_position ->
+  ?cancel_before:bool ->
+  unit ->
+  int Lwt.t
+
+(* 一括決済注文。対象: レバレッジ取引。戻り値は一括決済注文対象のorderId。
+   price: execution_type が Limit/Stop の場合は必須。 *)
+val close_bulk_order :
+  Auth.t ->
+  symbol:symbol ->
+  side:side ->
+  execution_type:execution_type ->
+  ?time_in_force:time_in_force ->
+  ?price:string ->
+  size:string ->
+  unit ->
+  int Lwt.t
+
+(* 建玉のロスカットレート変更。対象: レバレッジ取引。 *)
+val change_losscut_price :
+  Auth.t -> position_id:int -> losscut_price:string -> unit -> unit Lwt.t
+
+(* Private WebSocket API用のアクセストークンを取得する。有効期限60分、
+   最大5個まで発行可能(上限超過時は有効期限の近いものから自動削除)。
+   APIキー側で該当チャンネルの権限(会員ページで設定)を有効にしておく必要がある。 *)
+val ws_auth_post : Auth.t -> unit -> string Lwt.t
+
+(* アクセストークンを延長する(残り有効期限に関わらず新しい有効期限は60分)。 *)
+val ws_auth_put : Auth.t -> token:string -> unit -> unit Lwt.t
+
+(* アクセストークンを削除する。 *)
+val ws_auth_delete : Auth.t -> token:string -> unit -> unit Lwt.t

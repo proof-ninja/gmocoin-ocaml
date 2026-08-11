@@ -78,3 +78,20 @@ let post auth pathname data =
   RateLimiter.acquire post_limiter >>= fun () ->
   Http.post ~headers uri data >>= fun body ->
   Json.from_string body |> data_of_envelope |> Lwt.return
+
+(* PUT/DELETEもPOSTと同じ発注系のレートリミット枠を消費する扱いにしておく
+   (ws-authのアクセストークン延長・削除にのみ使う想定で、ドキュメントに
+   個別の上限記載が無いため安全側に倒す)。 *)
+let put auth pathname data =
+  let uri = Uri.make ~scheme:"https" ~host ~path:(private_base ^ pathname) () in
+  let headers = Auth.make_header auth "PUT" pathname data in
+  RateLimiter.acquire post_limiter >>= fun () ->
+  Http.put ~headers uri data >>= fun body ->
+  Json.from_string body |> data_of_envelope |> Lwt.return
+
+let delete auth pathname data =
+  let uri = Uri.make ~scheme:"https" ~host ~path:(private_base ^ pathname) () in
+  let headers = Auth.make_header auth "DELETE" pathname data in
+  RateLimiter.acquire post_limiter >>= fun () ->
+  Http.delete ~headers uri data >>= fun body ->
+  Json.from_string body |> data_of_envelope |> Lwt.return

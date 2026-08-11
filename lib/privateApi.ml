@@ -345,3 +345,146 @@ let order auth ~symbol ~side ~execution_type ?time_in_force ?price
 let cancel_order auth ~order_id () =
   let data = `Assoc [ ("orderId", `Int order_id) ] |> Json.to_string in
   ApiCommon.post auth "/v1/cancelOrder" data >>= fun _json -> Lwt.return ()
+
+type transfer_type = Withdrawal | Deposit
+
+let string_of_transfer_type = function
+  | Withdrawal -> "WITHDRAWAL"
+  | Deposit -> "DEPOSIT"
+
+type transfer_result = { transferredAmount : numeric } [@@deriving yojson]
+
+let transfer_result_of_json json =
+  match [%of_yojson: transfer_result list] json with
+  | Ok results -> results
+  | Error msg -> failwith (!%"PrivateApi.transfer_result_of_json: %s" msg)
+
+let transfer auth ~amount ~transfer_type () =
+  let data =
+    `Assoc
+      [
+        ("amount", `String amount);
+        ("transferType", `String (string_of_transfer_type transfer_type));
+      ]
+    |> Json.to_string
+  in
+  ApiCommon.post auth "/v1/account/transfer" data >>= fun json ->
+  Lwt.return (transfer_result_of_json json)
+
+let change_order auth ~order_id ~price ?losscut_price () =
+  let fields =
+    [ ("orderId", `Int order_id); ("price", `String price) ]
+    |> list_add_opt
+         (Option.map (fun p -> ("losscutPrice", `String p)) losscut_price)
+  in
+  let data = `Assoc fields |> Json.to_string in
+  ApiCommon.post auth "/v1/changeOrder" data >>= fun _json -> Lwt.return ()
+
+type cancel_orders_failure = {
+  message_code : string;
+  message_string : string;
+  orderId : int;
+}
+[@@deriving yojson]
+
+type cancel_orders_result = {
+  success : int list;
+  failed : cancel_orders_failure list;
+}
+[@@deriving yojson]
+
+let cancel_orders_result_of_json json =
+  match cancel_orders_result_of_yojson json with
+  | Ok result -> result
+  | Error msg -> failwith (!%"PrivateApi.cancel_orders_result_of_json: %s" msg)
+
+let cancel_orders auth ~order_ids () =
+  let data =
+    `Assoc [ ("orderIds", `List (List.map (fun id -> `Int id) order_ids)) ]
+    |> Json.to_string
+  in
+  ApiCommon.post auth "/v1/cancelOrders" data >>= fun json ->
+  Lwt.return (cancel_orders_result_of_json json)
+
+let cancel_bulk_order auth ~symbols ?side ?settle_type ?desc () =
+  let fields =
+    [ ("symbols", `List (List.map (fun s -> `String s) symbols)) ]
+    |> list_add_opt (Option.map (fun s -> ("side", side_to_yojson s)) side)
+    |> list_add_opt
+         (Option.map (fun s -> ("settleType", `String s)) settle_type)
+    |> list_add_opt (Option.map (fun d -> ("desc", `Bool d)) desc)
+  in
+  let data = `Assoc fields |> Json.to_string in
+  ApiCommon.post auth "/v1/cancelBulkOrder" data >>= fun json ->
+  match [%of_yojson: int list] json with
+  | Ok order_ids -> Lwt.return order_ids
+  | Error msg -> failwith (!%"PrivateApi.cancel_bulk_order: %s" msg)
+
+type settle_position = { positionId : int; size : string }
+
+let json_of_settle_position { positionId; size } =
+  `Assoc [ ("positionId", `Int positionId); ("size", `String size) ]
+
+let close_order auth ~symbol ~side ~execution_type ?time_in_force ?price
+    ~settle_position ?(cancel_before = false) () =
+  let fields =
+    [
+      ("symbol", `String symbol);
+      ("side", side_to_yojson side);
+      ("executionType", `String (string_of_execution_type execution_type));
+      ("settlePosition", json_of_settle_position settle_position);
+    ]
+    |> list_add_opt
+         (Option.map
+            (fun t -> ("timeInForce", `String (string_of_time_in_force t)))
+            time_in_force)
+    |> list_add_opt (Option.map (fun p -> ("price", `String p)) price)
+  in
+  let fields =
+    if cancel_before then ("cancelBefore", `Bool true) :: fields else fields
+  in
+  let data = `Assoc fields |> Json.to_string in
+  ApiCommon.post auth "/v1/closeOrder" data >>= fun json ->
+  Lwt.return (Json.Util.to_string json |> int_of_string)
+
+let close_bulk_order auth ~symbol ~side ~execution_type ?time_in_force ?price
+    ~size () =
+  let fields =
+    [
+      ("symbol", `String symbol);
+      ("side", side_to_yojson side);
+      ("executionType", `String (string_of_execution_type execution_type));
+      ("size", `String size);
+    ]
+    |> list_add_opt
+         (Option.map
+            (fun t -> ("timeInForce", `String (string_of_time_in_force t)))
+            time_in_force)
+    |> list_add_opt (Option.map (fun p -> ("price", `String p)) price)
+  in
+  let data = `Assoc fields |> Json.to_string in
+  ApiCommon.post auth "/v1/closeBulkOrder" data >>= fun json ->
+  Lwt.return (Json.Util.to_string json |> int_of_string)
+
+let change_losscut_price auth ~position_id ~losscut_price () =
+  let data =
+    `Assoc
+      [
+        ("positionId", `Int position_id); ("losscutPrice", `String losscut_price);
+      ]
+    |> Json.to_string
+  in
+  ApiCommon.post auth "/v1/changeLosscutPrice" data >>= fun _json ->
+  Lwt.return ()
+
+let ws_auth_post auth () =
+  ApiCommon.post auth "/v1/ws-auth" "" >>= fun json ->
+  Lwt.return (Json.Util.to_string json)
+
+let ws_auth_put auth ~token () =
+  let data = `Assoc [ ("token", `String token) ] |> Json.to_string in
+  ApiCommon.put auth "/v1/ws-auth" data >>= fun _json -> Lwt.return ()
+
+let ws_auth_delete auth ~token () =
+  let data = `Assoc [ ("token", `String token) ] |> Json.to_string in
+  ApiCommon.delete auth "/v1/ws-auth" data >>= fun _json -> Lwt.return ()

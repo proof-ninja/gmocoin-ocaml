@@ -74,3 +74,21 @@ let post ?(headers = []) uri data =
     Client.post ~headers uri ~body >>= fun (_resp, body) ->
     Cohttp_lwt.Body.to_string body
   with exn -> raise (HttpException ("POST", uri, exn))
+
+(* PUT/DELETE (ws-authのアクセストークン延長・削除で使用)。POSTと同じ理由で
+   自動リトライしない。 *)
+let put ?(headers = []) uri data =
+  try%lwt
+    let headers = Cohttp.Header.of_list headers in
+    let body = Cohttp_lwt.Body.of_string data in
+    Client.put ~headers uri ~body >>= fun (_resp, body) ->
+    Cohttp_lwt.Body.to_string body
+  with exn -> raise (HttpException ("PUT", uri, exn))
+
+let delete ?(headers = []) uri data =
+  try%lwt
+    let headers = Cohttp.Header.of_list headers in
+    let body = Cohttp_lwt.Body.of_string data in
+    Client.delete ~headers uri ~body >>= fun (_resp, body) ->
+    Cohttp_lwt.Body.to_string body
+  with exn -> raise (HttpException ("DELETE", uri, exn))

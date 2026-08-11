@@ -92,35 +92,37 @@ Public WebSocket / Private WebSocketの「subscribe/unsubscribeは1秒間1回ま
 |---|---|---|---|
 | 余力情報を取得 | `GET /v1/account/margin` | ✅ | `PrivateApi.margin` |
 | 資産残高を取得 | `GET /v1/account/assets` | ✅ | `PrivateApi.assets` |
-| 取引高情報を取得 | `GET /v1/account/tradingVolume` | ❌ | - |
-| 日本円の入金履歴の取得 | `GET /v1/account/fiatDeposit/history` | ❌ | - |
-| 日本円の出金履歴の取得 | `GET /v1/account/fiatWithdrawal/history` | ❌ | - |
-| 暗号資産の預入履歴の取得 | `GET /v1/account/deposit/history` | ❌ | - |
-| 暗号資産の送付履歴の取得 | `GET /v1/account/withdrawal/history` | ❌ | - |
+| 取引高情報を取得 | `GET /v1/account/tradingVolume` | ✅ | `PrivateApi.trading_volume` |
+| 日本円の入金履歴の取得 | `GET /v1/account/fiatDeposit/history` | ✅ | `PrivateApi.fiat_deposit_history` |
+| 日本円の出金履歴の取得 | `GET /v1/account/fiatWithdrawal/history` | ✅ | `PrivateApi.fiat_withdrawal_history` |
+| 暗号資産の預入履歴の取得 | `GET /v1/account/deposit/history` | ✅ | `PrivateApi.deposit_history` |
+| 暗号資産の送付履歴の取得 | `GET /v1/account/withdrawal/history` | ✅ | `PrivateApi.withdrawal_history` |
 | 注文情報取得 | `GET /v1/orders` | ✅ | `PrivateApi.orders` |
 | 有効注文一覧 | `GET /v1/activeOrders` | ✅ | `PrivateApi.active_orders` |
 | 約定情報取得 | `GET /v1/executions` | ✅ | `PrivateApi.executions` |
 | 最新の約定一覧 | `GET /v1/latestExecutions` | ✅ | `PrivateApi.latest_executions` |
 | 建玉一覧を取得 | `GET /v1/openPositions` | ✅ | `PrivateApi.open_positions` |
 | 建玉サマリーを取得 | `GET /v1/positionSummary` | ✅ | `PrivateApi.position_summary` |
-| 口座振替 | `POST /v1/account/transfer` | ❌ | - |
+| 口座振替 | `POST /v1/account/transfer` | ⚠️ | `PrivateApi.transfer`（実弾での動作確認は未実施） |
 | 注文 | `POST /v1/order` | ✅ | `PrivateApi.order` |
-| 注文変更 | `POST /v1/changeOrder` | ❌ | - |
+| 注文変更 | `POST /v1/changeOrder` | ✅ | `PrivateApi.change_order` |
 | 注文キャンセル | `POST /v1/cancelOrder` | ✅ | `PrivateApi.cancel_order` |
-| 注文の複数キャンセル | `POST /v1/cancelOrders` | ❌ | - |
-| 注文の一括キャンセル | `POST /v1/cancelBulkOrder` | ❌ | - |
-| 決済注文 | `POST /v1/closeOrder` | ❌ | - |
-| 一括決済注文 | `POST /v1/closeBulkOrder` | ❌ | - |
-| ロスカットレート変更 | `POST /v1/changeLosscutPrice` | ❌ | - |
-| アクセストークンを取得/延長/削除 | `POST`/`PUT`/`DELETE /v1/ws-auth` | ❌ | Private WebSocket用。WebSocket本体が未実装のため対応後回し |
+| 注文の複数キャンセル | `POST /v1/cancelOrders` | ✅ | `PrivateApi.cancel_orders` |
+| 注文の一括キャンセル | `POST /v1/cancelBulkOrder` | ✅ | `PrivateApi.cancel_bulk_order` |
+| 決済注文 | `POST /v1/closeOrder` | ✅ | `PrivateApi.close_order` |
+| 一括決済注文 | `POST /v1/closeBulkOrder` | ✅ | `PrivateApi.close_bulk_order` |
+| ロスカットレート変更 | `POST /v1/changeLosscutPrice` | ✅ | `PrivateApi.change_losscut_price` |
+| アクセストークンを取得/延長/削除 | `POST`/`PUT`/`DELETE /v1/ws-auth` | ✅ | `PrivateApi.ws_auth_post`/`ws_auth_put`/`ws_auth_delete` |
 
 ### Private WebSocket API
 
-エンドポイント: `wss://api.coin.z.com/ws/private`
+エンドポイント: `wss://api.coin.z.com/ws/private/v1/<token>`(`token`は`PrivateApi.ws_auth_post`で取得)
 
 | チャンネル | 状態 | 実装 |
 |---|---|---|
-| 約定情報通知 | ❌ | - |
-| 注文情報通知 | ❌ | - |
-| ポジション情報通知 | ❌ | - |
-| ポジションサマリー情報通知 | ❌ | - |
+| 約定情報通知 | ⚠️ | `Realtime.private_updates`(`ExecutionEvent`)。実際のAPIキーでの動作確認は未実施 |
+| 注文情報通知 | ⚠️ | `Realtime.private_updates`(`OrderEvent`)。実際のAPIキーでの動作確認は未実施 |
+| ポジション情報通知 | ⚠️ | `Realtime.private_updates`(`PositionEvent`)。実際のAPIキーでの動作確認は未実施 |
+| ポジションサマリー情報通知 | ⚠️ | `Realtime.private_updates`(`PositionSummaryEvent`)。実際のAPIキーでの動作確認は未実施 |
+
+公開チャンネル用の`updates`と違い、`private_updates`は接続が切れても内部で自動再接続はしない(アクセストークンが期限切れ(60分)で無効になっている可能性があり、その場合は再接続してもトークンを取り直さない限り無意味なため)。切断時はストリームの読み出しが例外で終わるので、呼び出し側で新しいトークンを取得してから呼び直すこと。
