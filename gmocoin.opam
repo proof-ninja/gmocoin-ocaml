@@ -3,13 +3,13 @@ opam-version: "2.0"
 version: "dev"
 synopsis: "OCaml client for the GMO Coin cryptocurrency exchange API"
 description:
-  "Provides typed bindings to GMO Coin's public and private HTTP APIs (market data, orders, positions, assets, margin) and the public realtime WebSocket API (ticker, orderbook, trades). Handles HMAC-SHA256 request signing and rate limiting automatically."
+  "Provides typed bindings to GMO Coin's public and private HTTP APIs (market data, order placement and management, positions, assets, margin, account transfers) and both the public and private realtime WebSocket APIs (ticker, orderbook, trades, and authenticated execution/order/position event channels). Handles HMAC-SHA256 request signing and rate limiting automatically."
 maintainer: ["Yoshihiro Imai"]
 authors: ["Yoshihiro Imai"]
 license: "MIT"
-tags: ["topics" "to describe" "your" "project"]
+tags: ["cryptocurrency" "exchange" "trading" "api" "websocket"]
 homepage: "https://github.com/proof-ninja/gmocoin-ocaml"
-doc: "https://url/to/documentation"
+doc: "https://github.com/proof-ninja/gmocoin-ocaml/"
 bug-reports: "https://github.com/proof-ninja/gmocoin-ocaml/issues"
 depends: [
   "ocaml"
