@@ -21,8 +21,7 @@ let client_of_uri uri =
 
 let connect () =
   let uri = Uri.of_string endpoint in
-  client_of_uri uri >>= fun client ->
-  Websocket_lwt_unix.connect client uri
+  client_of_uri uri >>= fun client -> Websocket_lwt_unix.connect client uri
 
 type channel = Ticker | Orderbooks | Trades
 
@@ -32,48 +31,49 @@ let string_of_channel = function
   | Trades -> "trades"
 
 let send_subscribe conn ~channel ~symbol =
-  let request = `Assoc [
-      ("command", `String "subscribe");
-      ("channel", `String (string_of_channel channel));
-      ("symbol", `String symbol);
-    ]
+  let request =
+    `Assoc
+      [
+        ("command", `String "subscribe");
+        ("channel", `String (string_of_channel channel));
+        ("symbol", `String symbol);
+      ]
   in
   Websocket_lwt_unix.write conn
     (Websocket.Frame.create ~content:(Json.to_string request) ())
 
 type ticker = {
-    channel: string;
-    ask: numeric;
-    bid: numeric;
-    high: numeric;
-    last: numeric;
-    low: numeric;
-    symbol: string;
-    timestamp: string;
-    volume: numeric;
-} [@@deriving yojson]
+  channel : string;
+  ask : numeric;
+  bid : numeric;
+  high : numeric;
+  last : numeric;
+  low : numeric;
+  symbol : string;
+  timestamp : string;
+  volume : numeric;
+}
+[@@deriving yojson]
 
 let ticker_of_json json =
   match ticker_of_yojson json with
   | Ok ticker -> ticker
   | Error msg -> failwith (!%"Realtime.ticker_of_json: %s" msg)
 
-type level = {
-    price: numeric;
-    size: numeric;
-} [@@deriving yojson]
+type level = { price : numeric; size : numeric } [@@deriving yojson]
 
 (* REST版と異なり、板情報は差分ではなく毎回スナップショット全体が届く。
    grouping はドキュメントに記載がないが実際のレスポンスに含まれるフィールド
    (価格のグルーピング幅と見られる)。念のため option にしておく。 *)
 type orderbook = {
-    channel: string;
-    asks: level list;
-    bids: level list;
-    symbol: string;
-    timestamp: string;
-    grouping: string option [@default None];
-} [@@deriving yojson]
+  channel : string;
+  asks : level list;
+  bids : level list;
+  symbol : string;
+  timestamp : string;
+  grouping : string option; [@default None]
+}
+[@@deriving yojson]
 
 let orderbook_of_json json =
   match orderbook_of_yojson json with
@@ -81,23 +81,21 @@ let orderbook_of_json json =
   | Error msg -> failwith (!%"Realtime.orderbook_of_json: %s" msg)
 
 type trade = {
-    channel: string;
-    price: numeric;
-    side: side;
-    size: numeric;
-    timestamp: string;
-    symbol: string;
-} [@@deriving yojson]
+  channel : string;
+  price : numeric;
+  side : side;
+  size : numeric;
+  timestamp : string;
+  symbol : string;
+}
+[@@deriving yojson]
 
 let trade_of_json json =
   match trade_of_yojson json with
   | Ok trade -> trade
   | Error msg -> failwith (!%"Realtime.trade_of_json: %s" msg)
 
-type update =
-  | Ticker of ticker
-  | Orderbook of orderbook
-  | Trade of trade
+type update = Ticker of ticker | Orderbook of orderbook | Trade of trade
 
 let update_of_json json =
   match Json.Util.member "channel" json with
@@ -114,11 +112,10 @@ let text_of_frame (frame : Websocket.Frame.t) =
 (* api.coin.z.com への接続は (OpenSSLバックエンドに切り替えた後も) 断続的に失敗する
    ことを確認済み (lib/http.ml 参照)。切断された場合も含め、指数バックオフ
    (0.5秒から最大30秒まで倍々) をかけながら無限にリトライする。 *)
-let rec connect_with_retry ?(delay=0.5) () =
-  Lwt.catch connect
-    (fun _exn ->
-       Lwt_unix.sleep delay >>= fun () ->
-       connect_with_retry ~delay:(Float.min (delay *. 2.) 30.) ())
+let rec connect_with_retry ?(delay = 0.5) () =
+  Lwt.catch connect (fun _exn ->
+      Lwt_unix.sleep delay >>= fun () ->
+      connect_with_retry ~delay:(Float.min (delay *. 2.) 30.) ())
 
 (* ネットワーク経路が明示的なCloseもRST/FINも送らずに黙って死んだ場合
    (Wi-Fiのスリープ復帰やNATのセッションタイムアウトなど)、[Websocket_lwt_unix.read]
@@ -130,31 +127,39 @@ let read_timeout = 90.0
 type read_result = Received of Websocket.Frame.t | Timed_out
 
 let read_with_timeout conn =
-  Lwt.pick [
+  Lwt.pick
+    [
       (Websocket_lwt_unix.read conn >|= fun frame -> Received frame);
       (Lwt_unix.sleep read_timeout >|= fun () -> Timed_out);
     ]
 
 (* 1回分の接続セッション: 購読して読み続ける。接続が切れる(または無応答が続く)と例外で終わる。 *)
 let run_session ~symbol channels conn push =
-  Lwt_list.iter_s (fun channel -> send_subscribe conn ~channel ~symbol) channels >>= fun () ->
+  Lwt_list.iter_s (fun channel -> send_subscribe conn ~channel ~symbol) channels
+  >>= fun () ->
   let rec loop () =
     read_with_timeout conn >>= function
     | Timed_out ->
-       Lwt.fail_with (!%"Realtime: no data received within %.0fs, treating connection as dead" read_timeout)
-    | Received frame ->
-       (match frame.Websocket.Frame.opcode with
+        Lwt.fail_with
+          (!%"Realtime: no data received within %.0fs, treating connection as \
+              dead"
+             read_timeout)
+    | Received frame -> (
+        match frame.Websocket.Frame.opcode with
         | Websocket.Frame.Opcode.Ping ->
-           Websocket_lwt_unix.write conn
-             (Websocket.Frame.create ~opcode:Websocket.Frame.Opcode.Pong ())
-           >>= loop
-        | Websocket.Frame.Opcode.Close -> Lwt.fail_with "Realtime: server closed the connection"
-        | _ ->
-           (match text_of_frame frame with
+            Websocket_lwt_unix.write conn
+              (Websocket.Frame.create ~opcode:Websocket.Frame.Opcode.Pong ())
+            >>= loop
+        | Websocket.Frame.Opcode.Close ->
+            Lwt.fail_with "Realtime: server closed the connection"
+        | _ -> (
+            match text_of_frame frame with
             | None -> loop ()
-            | Some content ->
-               (match update_of_json (Json.from_string content) with
-                | Some update -> push (Some update); loop ()
+            | Some content -> (
+                match update_of_json (Json.from_string content) with
+                | Some update ->
+                    push (Some update);
+                    loop ()
                 | None -> loop ())))
   in
   loop ()
@@ -171,25 +176,30 @@ let updates ~symbol channels =
     Lwt.catch
       (fun () -> run_session ~symbol channels conn push)
       (fun _exn -> Lwt.return ())
-    >>= fun () ->
-    connect_with_retry () >>= keep_running
+    >>= fun () -> connect_with_retry () >>= keep_running
   in
   Lwt.async (fun () -> keep_running conn);
   Lwt.return stream
 
 let single_channel_updates ~symbol channel of_update =
-  updates ~symbol [channel] >>= fun stream ->
+  updates ~symbol [ channel ] >>= fun stream ->
   Lwt.return (Lwt_stream.filter_map of_update stream)
 
 (* 最新レート (ticker) だけを購読する。 *)
 let ticker_updates ~symbol =
-  single_channel_updates ~symbol Ticker (function Ticker t -> Some t | _ -> None)
+  single_channel_updates ~symbol Ticker (function
+    | Ticker t -> Some t
+    | _ -> None)
 
 (* 板情報 (orderbooks) だけを購読する。全チャンネルまとめて受ける [updates] と違い、
    呼び出し側で [update] をパターンマッチして絞り込む必要がない。 *)
 let orderbook_updates ~symbol =
-  single_channel_updates ~symbol Orderbooks (function Orderbook ob -> Some ob | _ -> None)
+  single_channel_updates ~symbol Orderbooks (function
+    | Orderbook ob -> Some ob
+    | _ -> None)
 
 (* 取引履歴 (trades) だけを購読する。 *)
 let trade_updates ~symbol =
-  single_channel_updates ~symbol Trades (function Trade tr -> Some tr | _ -> None)
+  single_channel_updates ~symbol Trades (function
+    | Trade tr -> Some tr
+    | _ -> None)

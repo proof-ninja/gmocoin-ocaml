@@ -3,48 +3,45 @@ open Common
 type channel = Ticker | Orderbooks | Trades
 
 type ticker = {
-    channel: string;
-    ask: numeric;
-    bid: numeric;
-    high: numeric;
-    last: numeric;
-    low: numeric;
-    symbol: string;
-    timestamp: string;
-    volume: numeric;
+  channel : string;
+  ask : numeric;
+  bid : numeric;
+  high : numeric;
+  last : numeric;
+  low : numeric;
+  symbol : string;
+  timestamp : string;
+  volume : numeric;
 }
+
 val ticker_of_json : Json.t -> ticker
 
-type level = {
-    price: numeric;
-    size: numeric;
-}
+type level = { price : numeric; size : numeric }
 
 (* REST版と異なり、板情報は差分ではなく毎回スナップショット全体が届く。 *)
 type orderbook = {
-    channel: string;
-    asks: level list;
-    bids: level list;
-    symbol: string;
-    timestamp: string;
-    grouping: string option;
+  channel : string;
+  asks : level list;
+  bids : level list;
+  symbol : string;
+  timestamp : string;
+  grouping : string option;
 }
+
 val orderbook_of_json : Json.t -> orderbook
 
 type trade = {
-    channel: string;
-    price: numeric;
-    side: side;
-    size: numeric;
-    timestamp: string;
-    symbol: string;
+  channel : string;
+  price : numeric;
+  side : side;
+  size : numeric;
+  timestamp : string;
+  symbol : string;
 }
+
 val trade_of_json : Json.t -> trade
 
-type update =
-  | Ticker of ticker
-  | Orderbook of orderbook
-  | Trade of trade
+type update = Ticker of ticker | Orderbook of orderbook | Trade of trade
 
 val update_of_json : Json.t -> update option
 

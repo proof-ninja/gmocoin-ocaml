@@ -16,28 +16,21 @@ let post_limiter = RateLimiter.create ~capacity:20 ~window:1.0
    共通のエンベロープを持つ。status が 0 以外はエラーで、
    {"status": N, "messages": [{"message_code": "ERR-....", "message_string": "..."}]}
    という形になる。 *)
-type message = {
-    message_code: string;
-    message_string: string;
-}
-
-type api_error = {
-    status: int;
-    messages: message list;
-}
+type message = { message_code : string; message_string : string }
+type api_error = { status : int; messages : message list }
 
 exception Api_error of api_error
 
 let () =
   Printexc.register_printer (function
-      | Api_error e ->
-         let messages =
-           e.messages
-           |> List.map (fun m -> !%"%s: %s" m.message_code m.message_string)
-           |> String.concat "; "
-         in
-         Some (!%"GmoCoin.ApiCommon.Api_error(status=%d): %s" e.status messages)
-      | _ -> None)
+    | Api_error e ->
+        let messages =
+          e.messages
+          |> List.map (fun m -> !%"%s: %s" m.message_code m.message_string)
+          |> String.concat "; "
+        in
+        Some (!%"GmoCoin.ApiCommon.Api_error(status=%d): %s" e.status messages)
+    | _ -> None)
 
 (* エラーレスポンスの形がドキュメント通りとは限らない可能性を考慮し、
    member はキー欠落時に `Null を返す (例外を投げない) ことを利用して緩やかに読む。 *)
@@ -46,12 +39,12 @@ let api_error_of_json json =
   let status = member "status" json |> to_int in
   let messages =
     member "messages" json
-    |> (function `List l -> l | _ -> [])
+    |> ( function `List l -> l | _ -> [] )
     |> List.filter_map (fun m ->
-           match member "message_code" m, member "message_string" m with
-           | `String message_code, `String message_string ->
-              Some { message_code; message_string }
-           | _ -> None)
+        match (member "message_code" m, member "message_string" m) with
+        | `String message_code, `String message_string ->
+            Some { message_code; message_string }
+        | _ -> None)
   in
   { status; messages }
 

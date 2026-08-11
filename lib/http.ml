@@ -16,10 +16,11 @@ exception HttpException of string * Uri.t * exn
 
 let () =
   Printexc.register_printer (function
-      | HttpException (meth, uri, inner) ->
-         Some (!%"GmoCoin.Http.HttpException(%s, %s, %s)"
-                 meth (Uri.to_string uri) (Printexc.to_string inner))
-      | _ -> None)
+    | HttpException (meth, uri, inner) ->
+        Some
+          (!%"GmoCoin.Http.HttpException(%s, %s, %s)"
+             meth (Uri.to_string uri) (Printexc.to_string inner))
+    | _ -> None)
 
 (* api.coin.z.com は、OpenSSLバックエンドに切り替えた後も
    断続的に ECONNRESET でハンドシェイク/応答読み取りを打ち切ることがある
@@ -32,44 +33,44 @@ let () =
    の文字列に含まれる Unix エラー名で判定する。 *)
 let string_contains ~needle s =
   let nlen = String.length needle and slen = String.length s in
-  let rec loop i = i + nlen <= slen && (String.sub s i nlen = needle || loop (i + 1)) in
+  let rec loop i =
+    i + nlen <= slen && (String.sub s i nlen = needle || loop (i + 1))
+  in
   nlen = 0 || loop 0
 
 let is_transient exn =
   match exn with
-  | Unix.Unix_error ((ECONNRESET | ECONNREFUSED | ETIMEDOUT | EPIPE), _, _) -> true
+  | Unix.Unix_error ((ECONNRESET | ECONNREFUSED | ETIMEDOUT | EPIPE), _, _) ->
+      true
   | _ ->
-     let s = Printexc.to_string exn in
-     List.exists (fun needle -> string_contains ~needle s)
-       ["ECONNRESET"; "ECONNREFUSED"; "ETIMEDOUT"; "EPIPE"]
+      let s = Printexc.to_string exn in
+      List.exists
+        (fun needle -> string_contains ~needle s)
+        [ "ECONNRESET"; "ECONNREFUSED"; "ETIMEDOUT"; "EPIPE" ]
 
-let rec with_retry ?(retries=5) ?(delay=0.5) f =
-  Lwt.catch f
-    (fun exn ->
-       if retries > 0 && is_transient exn then
-         Lwt_unix.sleep delay >>= fun () ->
-         with_retry ~retries:(retries - 1) ~delay f
-       else
-         Lwt.fail exn)
+let rec with_retry ?(retries = 5) ?(delay = 0.5) f =
+  Lwt.catch f (fun exn ->
+      if retries > 0 && is_transient exn then
+        Lwt_unix.sleep delay >>= fun () ->
+        with_retry ~retries:(retries - 1) ~delay f
+      else Lwt.fail exn)
 
-let get ?(headers=[]) uri =
+let get ?(headers = []) uri =
   let attempt () =
     let headers = Cohttp.Header.of_list headers in
     Client.get ~headers uri >>= fun (_resp, body) ->
     Cohttp_lwt.Body.to_string body
   in
   try%lwt with_retry attempt
-  with
-  | exn -> raise (HttpException ("GET", uri, exn))
+  with exn -> raise (HttpException ("GET", uri, exn))
 
 (* POST は注文・キャンセル等の非冪等な操作に使われるため、ここでは自動リトライしない。
    ECONNRESET は応答の読み取り中 (=リクエスト送信後) に起きるため、盲目的にリトライすると
    実際にはサーバー側で処理済みの注文を二重に送ってしまう危険がある。 *)
-let post ?(headers=[]) uri data =
+let post ?(headers = []) uri data =
   try%lwt
-     let headers = Cohttp.Header.of_list headers in
-     let body = Cohttp_lwt.Body.of_string data in
-     Client.post ~headers uri ~body >>= fun (_resp, body) ->
-     Cohttp_lwt.Body.to_string body
-  with
-  | exn -> raise (HttpException ("POST", uri, exn))
+    let headers = Cohttp.Header.of_list headers in
+    let body = Cohttp_lwt.Body.of_string data in
+    Client.post ~headers uri ~body >>= fun (_resp, body) ->
+    Cohttp_lwt.Body.to_string body
+  with exn -> raise (HttpException ("POST", uri, exn))

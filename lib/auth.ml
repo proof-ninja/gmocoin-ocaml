@@ -2,17 +2,14 @@ open Common
 
 let default_filename = "gmocoin-auth.conf"
 
-type t = {
-    api_key : string;
-    secret : string;
-}
+type t = { api_key : string; secret : string }
 
-let from_file ?(filename=default_filename) () =
+let from_file ?(filename = default_filename) () =
   let ch = open_in filename in
   let api_key = input_line ch in
   let secret = input_line ch in
   close_in ch;
-  {api_key; secret}
+  { api_key; secret }
 
 let auth () = from_file ()
 
@@ -22,10 +19,9 @@ let timestamp_ms () =
 let sign auth timestamp method_ path body =
   let text = !%"%s%s%s%s" timestamp method_ path body in
   let secret = auth.secret in
-  Hacl_star.EverCrypt.HMAC.mac ~alg:SHA2_256
-    ~key:(Bytes.of_string secret) ~msg:(Bytes.of_string text)
-  |> Hex.of_bytes
-  |> Hex.show
+  Hacl_star.EverCrypt.HMAC.mac ~alg:SHA2_256 ~key:(Bytes.of_string secret)
+    ~msg:(Bytes.of_string text)
+  |> Hex.of_bytes |> Hex.show
 
 (* [path] は "/v1/..." のように "/private" を含まない形で渡すこと。
    GMOコインの署名対象パスはクエリ文字列も含めない。

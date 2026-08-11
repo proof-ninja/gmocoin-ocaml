@@ -2,80 +2,86 @@ open Common
 
 (* 余力情報を取得 *)
 type margin = {
-    actualProfitLoss: numeric;
-    availableAmount: numeric;
-    margin: numeric;
-    marginCallStatus: string;
-    marginRatio: numeric;
-    profitLoss: numeric;
-    transferableAmount: numeric;
+  actualProfitLoss : numeric;
+  availableAmount : numeric;
+  margin : numeric;
+  marginCallStatus : string;
+  marginRatio : numeric;
+  profitLoss : numeric;
+  transferableAmount : numeric;
 }
+
 val margin_of_json : Json.t -> margin
 val margin : Auth.t -> unit -> margin Lwt.t
 
 (* 資産残高を取得 *)
 type asset = {
-    amount: numeric;
-    available: numeric;
-    conversionRate: numeric;
-    symbol: string;
+  amount : numeric;
+  available : numeric;
+  conversionRate : numeric;
+  symbol : string;
 }
+
 val assets_of_json : Json.t -> asset list
 val assets : Auth.t -> unit -> asset list Lwt.t
 
 type order_info = {
-    rootOrderId: int;
-    orderId: int;
-    symbol: string;
-    side: side;
-    orderType: string;
-    executionType: string;
-    settleType: string;
-    size: numeric;
-    executedSize: numeric;
-    price: numeric option;
-    losscutPrice: numeric;
-    status: string;
-    cancelType: string option;
-    timeInForce: string;
-    timestamp: string;
+  rootOrderId : int;
+  orderId : int;
+  symbol : string;
+  side : side;
+  orderType : string;
+  executionType : string;
+  settleType : string;
+  size : numeric;
+  executedSize : numeric;
+  price : numeric option;
+  losscutPrice : numeric;
+  status : string;
+  cancelType : string option;
+  timeInForce : string;
+  timestamp : string;
 }
 
-type orders_response = {
-    list: order_info list;
-}
+type orders_response = { list : order_info list }
+
 val orders_response_of_json : Json.t -> orders_response
 
 (* 注文情報取得。[order_ids] はカンマ区切りで最大10件まで指定可能。 *)
 val orders : Auth.t -> order_ids:string list -> unit -> order_info list Lwt.t
 
 type active_orders_response = {
-    pagination: pagination;
-    list: order_info list;
+  pagination : pagination;
+  list : order_info list;
 }
+
 val active_orders_response_of_json : Json.t -> active_orders_response
 
 (* 有効注文一覧 *)
 val active_orders :
-  Auth.t -> symbol:symbol -> ?page:int -> ?count:int -> unit -> active_orders_response Lwt.t
+  Auth.t ->
+  symbol:symbol ->
+  ?page:int ->
+  ?count:int ->
+  unit ->
+  active_orders_response Lwt.t
 
 type execution = {
-    executionId: int;
-    orderId: int;
-    positionId: int option;
-    symbol: string;
-    side: side;
-    settleType: string;
-    size: numeric;
-    price: numeric;
-    lossGain: numeric;
-    fee: numeric;
-    timestamp: string;
+  executionId : int;
+  orderId : int;
+  positionId : int option;
+  symbol : string;
+  side : side;
+  settleType : string;
+  size : numeric;
+  price : numeric;
+  lossGain : numeric;
+  fee : numeric;
+  timestamp : string;
 }
 
-type executions_response = {
-    list: execution list;
-}
+type executions_response = { list : execution list }
+
 val executions_response_of_json : Json.t -> executions_response
 
 type order_ref = ById of int | ByExecutionIds of int list
@@ -84,54 +90,63 @@ type order_ref = ById of int | ByExecutionIds of int list
 val executions : Auth.t -> order_ref -> execution list Lwt.t
 
 type latest_executions_response = {
-    pagination: pagination;
-    list: execution list;
+  pagination : pagination;
+  list : execution list;
 }
+
 val latest_executions_response_of_json : Json.t -> latest_executions_response
 
 (* 最新の約定一覧 (直近1日分) *)
 val latest_executions :
-  Auth.t -> symbol:symbol -> ?page:int -> ?count:int -> unit -> latest_executions_response Lwt.t
+  Auth.t ->
+  symbol:symbol ->
+  ?page:int ->
+  ?count:int ->
+  unit ->
+  latest_executions_response Lwt.t
 
 type position = {
-    positionId: int;
-    symbol: string;
-    side: side;
-    size: numeric;
-    orderdSize: numeric;
-    price: numeric;
-    lossGain: numeric;
-    leverage: numeric;
-    losscutPrice: numeric;
-    timestamp: string;
+  positionId : int;
+  symbol : string;
+  side : side;
+  size : numeric;
+  orderdSize : numeric;
+  price : numeric;
+  lossGain : numeric;
+  leverage : numeric;
+  losscutPrice : numeric;
+  timestamp : string;
 }
 
-type open_positions_response = {
-    pagination: pagination;
-    list: position list;
-}
+type open_positions_response = { pagination : pagination; list : position list }
+
 val open_positions_response_of_json : Json.t -> open_positions_response
 
 (* 建玉一覧を取得。対象: レバレッジ取引 *)
 val open_positions :
-  Auth.t -> symbol:symbol -> ?page:int -> ?count:int -> unit -> open_positions_response Lwt.t
+  Auth.t ->
+  symbol:symbol ->
+  ?page:int ->
+  ?count:int ->
+  unit ->
+  open_positions_response Lwt.t
 
 type position_summary = {
-    averagePositionRate: numeric;
-    positionLossGain: numeric;
-    side: side;
-    sumOrderQuantity: numeric;
-    sumPositionQuantity: numeric;
-    symbol: string;
+  averagePositionRate : numeric;
+  positionLossGain : numeric;
+  side : side;
+  sumOrderQuantity : numeric;
+  sumPositionQuantity : numeric;
+  symbol : string;
 }
 
-type position_summary_response = {
-    list: position_summary list;
-}
+type position_summary_response = { list : position_summary list }
+
 val position_summary_response_of_json : Json.t -> position_summary_response
 
 (* 建玉サマリーを取得。対象: レバレッジ取引。symbol省略時は全銘柄分。 *)
-val position_summary : Auth.t -> ?symbol:symbol -> unit -> position_summary list Lwt.t
+val position_summary :
+  Auth.t -> ?symbol:symbol -> unit -> position_summary list Lwt.t
 
 type execution_type = Market | Limit | Stop
 type time_in_force = FAK | FAS | FOK | SOK
