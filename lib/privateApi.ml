@@ -41,6 +41,90 @@ let assets auth () =
   ApiCommon.get auth "/v1/account/assets" [] >>= fun json ->
   Lwt.return (assets_of_json json)
 
+type trading_volume_limit = {
+  symbol : string;
+  todayLimitOpenSize : numeric option; [@default None]
+  todayLimitBuySize : numeric option; [@default None]
+  todayLimitSellSize : numeric option; [@default None]
+  takerFee : numeric;
+  makerFee : numeric;
+}
+[@@deriving yojson]
+
+type trading_volume = {
+  jpyVolume : numeric;
+  tierLevel : int;
+  limit : trading_volume_limit list;
+}
+[@@deriving yojson]
+
+let trading_volume_of_json json =
+  match trading_volume_of_yojson json with
+  | Ok trading_volume -> trading_volume
+  | Error msg -> failwith (!%"PrivateApi.trading_volume_of_json: %s" msg)
+
+let trading_volume auth () =
+  ApiCommon.get auth "/v1/account/tradingVolume" [] >>= fun json ->
+  Lwt.return (trading_volume_of_json json)
+
+type fiat_history_entry = {
+  amount : numeric;
+  fee : numeric;
+  status : string;
+  symbol : string;
+  timestamp : string;
+}
+[@@deriving yojson]
+
+let fiat_history_entry_of_json json =
+  match [%of_yojson: fiat_history_entry list] json with
+  | Ok entries -> entries
+  | Error msg -> failwith (!%"PrivateApi.fiat_history_entry_of_json: %s" msg)
+
+let fiat_history_query ~from_timestamp ?to_timestamp () =
+  [ ("fromTimestamp", from_timestamp) ]
+  |> list_add_opt (Option.map (fun t -> ("toTimestamp", t)) to_timestamp)
+
+let fiat_deposit_history auth ~from_timestamp ?to_timestamp () =
+  let query = fiat_history_query ~from_timestamp ?to_timestamp () in
+  ApiCommon.get auth "/v1/account/fiatDeposit/history" query >>= fun json ->
+  Lwt.return (fiat_history_entry_of_json json)
+
+let fiat_withdrawal_history auth ~from_timestamp ?to_timestamp () =
+  let query = fiat_history_query ~from_timestamp ?to_timestamp () in
+  ApiCommon.get auth "/v1/account/fiatWithdrawal/history" query >>= fun json ->
+  Lwt.return (fiat_history_entry_of_json json)
+
+type crypto_history_entry = {
+  address : string;
+  amount : numeric;
+  fee : numeric option; [@default None]
+  status : string;
+  symbol : string;
+  timestamp : string;
+  txHash : string;
+}
+[@@deriving yojson]
+
+let crypto_history_entry_of_json json =
+  match [%of_yojson: crypto_history_entry list] json with
+  | Ok entries -> entries
+  | Error msg -> failwith (!%"PrivateApi.crypto_history_entry_of_json: %s" msg)
+
+let crypto_history_query ~symbol ~from_timestamp ?to_timestamp () =
+  [ ("symbol", symbol); ("fromTimestamp", from_timestamp) ]
+  |> list_add_opt (Option.map (fun t -> ("toTimestamp", t)) to_timestamp)
+
+let deposit_history auth ~symbol ~from_timestamp ?to_timestamp () =
+  let query = crypto_history_query ~symbol ~from_timestamp ?to_timestamp () in
+  ApiCommon.get auth "/v1/account/deposit/history" query >>= fun json ->
+  Lwt.return (crypto_history_entry_of_json json)
+
+let withdrawal_history auth ~symbol ~from_timestamp ?to_timestamp () =
+  let query = crypto_history_query ~symbol ~from_timestamp ?to_timestamp () in
+  ApiCommon.get auth "/v1/account/withdrawal/history" query >>= fun json ->
+  Lwt.return (crypto_history_entry_of_json json)
+
 (* 注文情報。price は MARKET 注文では、cancelType は CANCELLING/CANCELED/EXPIRED
    状態のときのみ含まれるため option。 *)
 type order_info = {

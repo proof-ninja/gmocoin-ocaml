@@ -25,6 +25,90 @@ type asset = {
 val assets_of_json : Json.t -> asset list
 val assets : Auth.t -> unit -> asset list Lwt.t
 
+(* 取引高情報を取得。limitの内訳はレバレッジ銘柄("todayLimitOpenSize")と
+   現物銘柄("todayLimitBuySize"/"todayLimitSellSize")で異なるフィールドが
+   使われるため、symbol/takerFee/makerFee以外はoptionにしている。 *)
+type trading_volume_limit = {
+  symbol : string;
+  todayLimitOpenSize : numeric option;
+  todayLimitBuySize : numeric option;
+  todayLimitSellSize : numeric option;
+  takerFee : numeric;
+  makerFee : numeric;
+}
+
+type trading_volume = {
+  jpyVolume : numeric;
+  tierLevel : int;
+  limit : trading_volume_limit list;
+}
+
+val trading_volume_of_json : Json.t -> trading_volume
+val trading_volume : Auth.t -> unit -> trading_volume Lwt.t
+
+(* 日本円の入金履歴・出金履歴で共通のレスポンス形式。 *)
+type fiat_history_entry = {
+  amount : numeric;
+  fee : numeric;
+  status : string; (* "EXECUTED" *)
+  symbol : string; (* "JPY" *)
+  timestamp : string;
+}
+
+val fiat_history_entry_of_json : Json.t -> fiat_history_entry list
+
+(* 日本円の入金履歴を取得。[from_timestamp]必須(UTC、
+   "YYYY-MM-DDTHH:MM:SS.SSSZ")。[to_timestamp]省略時はfrom_timestamp+30分
+   (from_timestampとto_timestampの差は最大30分)。 *)
+val fiat_deposit_history :
+  Auth.t ->
+  from_timestamp:string ->
+  ?to_timestamp:string ->
+  unit ->
+  fiat_history_entry list Lwt.t
+
+(* 日本円の出金履歴を取得。パラメータはfiat_deposit_historyと同様。 *)
+val fiat_withdrawal_history :
+  Auth.t ->
+  from_timestamp:string ->
+  ?to_timestamp:string ->
+  unit ->
+  fiat_history_entry list Lwt.t
+
+(* 暗号資産の預入履歴・送付履歴で共通のレスポンス形式。feeはドキュメントの
+   フィールド表には載っているがレスポンス例には無く、実際に省略されうるため
+   optionにしている。 *)
+type crypto_history_entry = {
+  address : string;
+  amount : numeric;
+  fee : numeric option;
+  status : string; (* "EXECUTED" *)
+  symbol : string;
+  timestamp : string;
+  txHash : string;
+}
+
+val crypto_history_entry_of_json : Json.t -> crypto_history_entry list
+
+(* 暗号資産の預入履歴を取得。[symbol]/[from_timestamp]必須。
+   [to_timestamp]の省略時の扱いはfiat_deposit_historyと同様。 *)
+val deposit_history :
+  Auth.t ->
+  symbol:symbol ->
+  from_timestamp:string ->
+  ?to_timestamp:string ->
+  unit ->
+  crypto_history_entry list Lwt.t
+
+(* 暗号資産の送付履歴を取得。パラメータはdeposit_historyと同様。 *)
+val withdrawal_history :
+  Auth.t ->
+  symbol:symbol ->
+  from_timestamp:string ->
+  ?to_timestamp:string ->
+  unit ->
+  crypto_history_entry list Lwt.t
+
 type order_info = {
   rootOrderId : int;
   orderId : int;
