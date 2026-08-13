@@ -109,14 +109,6 @@ let text_of_frame (frame : Websocket.Frame.t) =
   | Websocket.Frame.Opcode.Text -> Some frame.content
   | _ -> None
 
-(* api.coin.z.com への接続は (OpenSSLバックエンドに切り替えた後も) 断続的に失敗する
-   ことを確認済み (lib/http.ml 参照)。切断された場合も含め、指数バックオフ
-   (0.5秒から最大30秒まで倍々) をかけながら無限にリトライする。 *)
-let rec connect_with_retry ?(delay = 0.5) () =
-  Lwt.catch connect (fun _exn ->
-      Lwt_unix.sleep delay >>= fun () ->
-      connect_with_retry ~delay:(Float.min (delay *. 2.) 30.) ())
-
 (* ネットワーク経路が明示的なCloseもRST/FINも送らずに黙って死んだ場合
    (Wi-Fiのスリープ復帰やNATのセッションタイムアウトなど)、[Websocket_lwt_unix.read]
    は例外にならずただ無期限にpendingし続け、再接続ロジックが一切働かなくなる。
@@ -133,11 +125,18 @@ let read_with_timeout conn =
       (Lwt_unix.sleep read_timeout >|= fun () -> Timed_out);
     ]
 
-(* 1回分の接続セッション: 購読して読み続ける。接続が切れる(または無応答が続く)と例外で終わる。 *)
-let run_session ~symbol channels conn push =
+(* [updates ~symbol channels] はWebSocketに接続し、指定した [symbol] について
+   [channels] をすべて購読して、受信するたびに [update Lwt_stream.t] として流す。
+   接続が切れて(または無応答が続いて)も内部では再接続しない。bitflyer-ocamlの
+   [Realtime.updates]と同じく、再接続は呼び出し側の責務とする(以前はここで
+   指数バックオフしながら内部で無限リトライしていたが、bitFlyer側と挙動が
+   非対称で分かりにくいため統一した)。接続が切れた場合は[next]がそのまま例外を
+   投げ、[Lwt_stream.from]の性質によりストリームの読み出しがその例外で終わる。 *)
+let updates ~symbol channels =
+  connect () >>= fun conn ->
   Lwt_list.iter_s (fun channel -> send_subscribe conn ~channel ~symbol) channels
   >>= fun () ->
-  let rec loop () =
+  let rec next () =
     read_with_timeout conn >>= function
     | Timed_out ->
         Lwt.fail_with
@@ -149,37 +148,18 @@ let run_session ~symbol channels conn push =
         | Websocket.Frame.Opcode.Ping ->
             Websocket_lwt_unix.write conn
               (Websocket.Frame.create ~opcode:Websocket.Frame.Opcode.Pong ())
-            >>= loop
+            >>= next
         | Websocket.Frame.Opcode.Close ->
             Lwt.fail_with "Realtime: server closed the connection"
         | _ -> (
             match text_of_frame frame with
-            | None -> loop ()
+            | None -> next ()
             | Some content -> (
                 match update_of_json (Json.from_string content) with
-                | Some update ->
-                    push (Some update);
-                    loop ()
-                | None -> loop ())))
+                | Some update -> Lwt.return_some update
+                | None -> next ())))
   in
-  loop ()
-
-(* [updates ~symbol channels] はWebSocketに接続し、指定した [symbol] について
-   [channels] をすべて購読して、受信するたびに [update Lwt_stream.t] として流す。
-   最初の接続が確立するまでは返り値のPromiseは解決しない。接続が途中で切れた場合は
-   呼び出し側から見えないところで自動的に再接続するので、返された stream は
-   (一時的な接続断では) 終了しない。 *)
-let updates ~symbol channels =
-  connect_with_retry () >>= fun conn ->
-  let stream, push = Lwt_stream.create () in
-  let rec keep_running conn =
-    Lwt.catch
-      (fun () -> run_session ~symbol channels conn push)
-      (fun _exn -> Lwt.return ())
-    >>= fun () -> connect_with_retry () >>= keep_running
-  in
-  Lwt.async (fun () -> keep_running conn);
-  Lwt.return stream
+  Lwt.return (Lwt_stream.from next)
 
 let single_channel_updates ~symbol channel of_update =
   updates ~symbol [ channel ] >>= fun stream ->

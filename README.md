@@ -125,4 +125,4 @@ Public WebSocket / Private WebSocketの「subscribe/unsubscribeは1秒間1回ま
 | ポジション情報通知 | ⚠️ | `Realtime.private_updates`(`PositionEvent`)。実際のAPIキーでの動作確認は未実施 |
 | ポジションサマリー情報通知 | ⚠️ | `Realtime.private_updates`(`PositionSummaryEvent`)。実際のAPIキーでの動作確認は未実施 |
 
-公開チャンネル用の`updates`と違い、`private_updates`は接続が切れても内部で自動再接続はしない(アクセストークンが期限切れ(60分)で無効になっている可能性があり、その場合は再接続してもトークンを取り直さない限り無意味なため)。切断時はストリームの読み出しが例外で終わるので、呼び出し側で新しいトークンを取得してから呼び直すこと。
+`updates`(公開チャンネル)・`private_updates`(プライベートチャンネル)とも、接続が切れても内部では自動再接続しない(以前は`updates`のみ内部で指数バックオフしながら無限リトライしていたが、bitflyer-ocamlの`Realtime.updates`と挙動を揃えるため撤廃した)。切断時はストリームの読み出しが例外で終わるので、再接続は呼び出し側の責務になる。`private_updates`はアクセストークンが期限切れ(60分)で無効になっている可能性があるため、再接続前に新しいトークンを取得すること。
