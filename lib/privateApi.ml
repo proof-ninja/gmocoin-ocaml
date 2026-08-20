@@ -4,6 +4,20 @@ open Common
 (* Private API: https://api.coin.z.com/private
    すべての呼出にAPIキーによる認証が必要。 *)
 
+(* GMOコインのAPIは、該当データが0件のとき"list"/"pagination"等の期待される
+   フィールドを一切含まないbareな空オブジェクト({})を返すことがある
+   (activeOrders/latestExecutionsで実機のレスポンスを確認済み。有効注文が
+   無い成行注文直後などに実際に踏んだ)。[@@deriving yojson]の通常のパースは
+   これを必須フィールド欠落の型エラーとして失敗させてしまうため、空オブジェクトの
+   場合は明示的に[empty]を返すようにする。 *)
+let of_json_or_empty ~empty ~error_prefix of_yojson json =
+  match json with
+  | `Assoc [] -> empty
+  | _ -> (
+      match of_yojson json with
+      | Ok response -> response
+      | Error msg -> failwith (!%"%s: %s" error_prefix msg))
+
 type margin = {
   actualProfitLoss : numeric;
   availableAmount : numeric;
@@ -150,9 +164,9 @@ type order_info = {
 type orders_response = { list : order_info list } [@@deriving yojson]
 
 let orders_response_of_json json =
-  match orders_response_of_yojson json with
-  | Ok response -> response
-  | Error msg -> failwith (!%"PrivateApi.orders_response_of_json: %s" msg)
+  of_json_or_empty ~empty:{ list = [] }
+    ~error_prefix:"PrivateApi.orders_response_of_json" orders_response_of_yojson
+    json
 
 (* [order_ids] はカンマ区切りで最大10件まで指定可能。 *)
 let orders auth ~order_ids () =
@@ -167,10 +181,10 @@ type active_orders_response = {
 [@@deriving yojson]
 
 let active_orders_response_of_json json =
-  match active_orders_response_of_yojson json with
-  | Ok response -> response
-  | Error msg ->
-      failwith (!%"PrivateApi.active_orders_response_of_json: %s" msg)
+  of_json_or_empty
+    ~empty:{ pagination = { currentPage = 1; count = 0 }; list = [] }
+    ~error_prefix:"PrivateApi.active_orders_response_of_json"
+    active_orders_response_of_yojson json
 
 let active_orders auth ~symbol ?page ?count () =
   let query =
@@ -200,9 +214,9 @@ type execution = {
 type executions_response = { list : execution list } [@@deriving yojson]
 
 let executions_response_of_json json =
-  match executions_response_of_yojson json with
-  | Ok response -> response
-  | Error msg -> failwith (!%"PrivateApi.executions_response_of_json: %s" msg)
+  of_json_or_empty ~empty:{ list = [] }
+    ~error_prefix:"PrivateApi.executions_response_of_json"
+    executions_response_of_yojson json
 
 type order_ref = ById of int | ByExecutionIds of int list
 
@@ -225,10 +239,10 @@ type latest_executions_response = {
 [@@deriving yojson]
 
 let latest_executions_response_of_json json =
-  match latest_executions_response_of_yojson json with
-  | Ok response -> response
-  | Error msg ->
-      failwith (!%"PrivateApi.latest_executions_response_of_json: %s" msg)
+  of_json_or_empty
+    ~empty:{ pagination = { currentPage = 1; count = 0 }; list = [] }
+    ~error_prefix:"PrivateApi.latest_executions_response_of_json"
+    latest_executions_response_of_yojson json
 
 (* 直近1日分の約定情報を返す。 *)
 let latest_executions auth ~symbol ?page ?count () =
@@ -258,10 +272,10 @@ type open_positions_response = { pagination : pagination; list : position list }
 [@@deriving yojson]
 
 let open_positions_response_of_json json =
-  match open_positions_response_of_yojson json with
-  | Ok response -> response
-  | Error msg ->
-      failwith (!%"PrivateApi.open_positions_response_of_json: %s" msg)
+  of_json_or_empty
+    ~empty:{ pagination = { currentPage = 1; count = 0 }; list = [] }
+    ~error_prefix:"PrivateApi.open_positions_response_of_json"
+    open_positions_response_of_yojson json
 
 (* 対象: レバレッジ取引 *)
 let open_positions auth ~symbol ?page ?count () =
@@ -287,10 +301,9 @@ type position_summary_response = { list : position_summary list }
 [@@deriving yojson]
 
 let position_summary_response_of_json json =
-  match position_summary_response_of_yojson json with
-  | Ok response -> response
-  | Error msg ->
-      failwith (!%"PrivateApi.position_summary_response_of_json: %s" msg)
+  of_json_or_empty ~empty:{ list = [] }
+    ~error_prefix:"PrivateApi.position_summary_response_of_json"
+    position_summary_response_of_yojson json
 
 (* 対象: レバレッジ取引。symbol を省略すると保有している全銘柄分を返す。 *)
 let position_summary auth ?symbol () =

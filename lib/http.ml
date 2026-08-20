@@ -38,6 +38,12 @@ let string_contains ~needle s =
   in
   nlen = 0 || loop 0
 
+(* "SSL connection() error: error:00:000000:lib(0)::reason(0)" は、
+   Realtime.ml(WebSocket)側でも同じ文言で断続的に観測している、api.coin.z.com
+   との接続不安定さのOpenSSLバックエンド越しの現れ方(実機で確認済み: GET
+   /v1/activeOrdersがこれで失敗し、リトライされないままOrder_execution側の
+   注文照合を失敗させ、成立済みの反対側の脚を無駄に巻き戻す事態を引き起こした)。
+   ECONNRESET等と同様に一時的な接続断として扱い、冪等なGETに限りリトライする。 *)
 let is_transient exn =
   match exn with
   | Unix.Unix_error ((ECONNRESET | ECONNREFUSED | ETIMEDOUT | EPIPE), _, _) ->
@@ -46,7 +52,9 @@ let is_transient exn =
       let s = Printexc.to_string exn in
       List.exists
         (fun needle -> string_contains ~needle s)
-        [ "ECONNRESET"; "ECONNREFUSED"; "ETIMEDOUT"; "EPIPE" ]
+        [
+          "ECONNRESET"; "ECONNREFUSED"; "ETIMEDOUT"; "EPIPE"; "SSL connection()";
+        ]
 
 let rec with_retry ?(retries = 5) ?(delay = 0.5) f =
   Lwt.catch f (fun exn ->

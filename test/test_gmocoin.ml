@@ -181,6 +181,25 @@ let test_position_summary () =
   let ps = PrivateApi.position_summary_response_of_json json in
   Alcotest.(check int) "list length" 1 (List.length ps.list)
 
+(* 該当データが0件のとき、GMOコインのAPIはpagination/list等を含まないbareな
+   空オブジェクト({})を返すことを実機で確認済み(activeOrders/latestExecutions)。
+   [@@deriving yojson]の通常のパースだと必須フィールド欠落で失敗するため、
+   空オブジェクトは明示的に空のlistとして扱う(of_json_or_empty)。 *)
+let test_empty_object_response () =
+  let json = Common.Json.from_string "{}" in
+  let ao = PrivateApi.active_orders_response_of_json json in
+  Alcotest.(check int) "active_orders: list length" 0 (List.length ao.list);
+  let le = PrivateApi.latest_executions_response_of_json json in
+  Alcotest.(check int) "latest_executions: list length" 0 (List.length le.list);
+  let op = PrivateApi.open_positions_response_of_json json in
+  Alcotest.(check int) "open_positions: list length" 0 (List.length op.list);
+  let ps = PrivateApi.position_summary_response_of_json json in
+  Alcotest.(check int) "position_summary: list length" 0 (List.length ps.list);
+  let ors = PrivateApi.orders_response_of_json json in
+  Alcotest.(check int) "orders: list length" 0 (List.length ors.list);
+  let ex = PrivateApi.executions_response_of_json json in
+  Alcotest.(check int) "executions: list length" 0 (List.length ex.list)
+
 let test_api_error () =
   let json =
     Common.Json.from_string
@@ -294,6 +313,8 @@ let () =
           Alcotest.test_case "executions" `Quick test_executions;
           Alcotest.test_case "open_positions" `Quick test_open_positions;
           Alcotest.test_case "position_summary" `Quick test_position_summary;
+          Alcotest.test_case "empty object response" `Quick
+            test_empty_object_response;
         ] );
       ( "Realtime",
         [
